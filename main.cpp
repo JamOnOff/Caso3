@@ -29,12 +29,17 @@ private:
     double areaInicio[2];
     double areaFin[2];
     
-    string color = "#000000";
-    
     string id = "";
     string opacidad = "";
     
+    string color = "#000000";
+    
+    //coordenada indicada por moveto
+    double M_x = -1;
+    double M_y = -1;
+    
     string d = "";
+    
 public:
     void setNodoXML(xml_node<>* nodoXML) {
         this->nodoXML = nodoXML;
@@ -79,6 +84,85 @@ public:
     }
     
     /*
+     * Pasa a posición relativa las coordenadas del path
+     */
+    void pasarRelativo(){
+        string nuevoPath = "";
+        
+        string numStr = ""; // donde se gurdan los char del numero a pasar a double
+        char codigo = ' '; // codigo el cual se está recorriendo
+        
+        bool punto = false; // si ya se ha agregado al número un '.'
+        
+        int pos = 0; // posicion a insertar en aux
+        double aux[2]; // guarda el punto encontrado y que se debe procesar
+        
+        bool posAbs = false; // indica si es una posicion absoluta
+        
+        int tam = this->d.size();
+        for (int i = 0; i < tam; i++) {
+            char c = this->d[i];
+            
+            // Pasa los char del número al string
+            if((c == '.' && !punto) || (c == '-' && numStr == "") || (int('0') <= int(c) && int(c) <= int('9'))){
+                numStr += c;
+                if(c == '.')
+                    punto = true;
+            }
+            else{
+                // si el char es un código
+                if(int('A') <= int(c) && int(c) <= int('Z')){
+                    posAbs = true;
+                    
+                    // pasa codigo a relativo (minuscula)
+                    codigo = char(int('a') + int(c) - int('A'));
+                    
+                    nuevoPath += codigo;
+                }
+                else if(int('a') <= int(c) && int(c) <= int('z')){
+                    posAbs = false;
+                    codigo = c;
+                    
+                    if(c != 'z')
+                        nuevoPath += c;
+                }
+                
+                if(numStr != ""){
+                    // Define el punto en aux
+                    aux[pos] = stod(numStr);
+
+                    pos++;
+                    
+                    if(pos == 2){
+                        // Pasa la coordenada en aux a relativo
+                        if(posAbs){
+                            aux[0] -= this->M_x;
+                            aux[1] -= this->M_y;
+                        }
+                        if(int('0') <= int(nuevoPath[nuevoPath.size()-1]) && int(nuevoPath[nuevoPath.size()-1]) <= int('9'))
+                            nuevoPath += ',';
+                        
+                        nuevoPath += to_string(aux[0]) + ',' + to_string(aux[1]);
+                        
+                        pos = 0;
+                        aux[0] = 0;
+                        aux[1] = 0;
+                    }
+                    
+                    numStr = "";
+                    punto = false;
+                }
+            }
+            
+            if(c == '-' && numStr == "")
+                numStr += c;
+        }
+        
+        nuevoPath += 'z';
+        this->d = nuevoPath;
+    }
+    
+    /*
      * Analiza y define el area según la información del path entrante
      */
     void path(string infoPath){
@@ -86,10 +170,6 @@ public:
             infoPath += 'z'; // Agrega 'z' para marcar el final del path
         
         this->d = infoPath;
-        
-        //coordenada indicada por moveto
-        double M_x = -1;
-        double M_y = -1;
         
         string numStr = ""; // donde se gurdan los char del numero a pasar a double
         char codigoNuevo = ' '; // codigo que se acaba de encontrar
@@ -105,7 +185,11 @@ public:
         int pos = 0; // posicion a insertar en aux
         double aux[2]; // guarda el punto encontrado y que se debe procesar
         double temp;
-        for (char c : infoPath) {
+        
+        int tam = infoPath.size();
+        for (int i = 0; i < tam; i++) {
+            char c = infoPath[i];
+            
             // Pasa los char del número al string
             if((c == '.' && !punto) || (c == '-' && numStr == "") || (int('0') <= int(c) && int(c) <= int('9'))){
                 numStr += c;
@@ -116,10 +200,9 @@ public:
                 // si el char es un código
                 if(int('A') <= int(c) && int(c) <= int('Z') || int('a') <= int(c) && int(c) <= int('z')){
                     codigoNuevo = c;
-                    
-                    if(codigo != ' ' && codigoNuevo == 'M'){
-                        M_x = -1;
-                        M_y = -1;
+                    if(codigo == 'M'){
+                        // Quitar moveto del d
+                        this->d = this->d.substr(i, tam - i);
                     }
                 }
                 if(numStr != ""){
@@ -202,8 +285,7 @@ public:
     
     
     void imprimir(){
-        cout << this->id << ";" << this->color << ";" << this->opacidad << ";" << this->areaInicio[0] 
-             << "," << this->areaInicio[1] << ";" << this->areaFin[0] << "," << this->areaFin[1] << endl;
+        cout << this->id << ";" << this->color << ";" << this->opacidad << ";M" << this->M_x << "," << this->M_y << this->d << endl;
     }
 };
 
@@ -453,7 +535,7 @@ int main(int argc, char** argv) {
     int tamC = (sizeof(colores) / sizeof(colores[0]));
     
     vector<Path*> pathSeleccionados = archivoXML->seleccionar(puntos, tamP, colores, tamC);
-    
+    /*
     Path* p;
     vector<Path*>::iterator fin = pathSeleccionados.end();
     for(vector<Path*>::iterator it = pathSeleccionados.begin(); it != fin; ++it)
@@ -461,6 +543,7 @@ int main(int argc, char** argv) {
         p = ((Path*)*it);
         p->imprimir();
     }
+    */
     
     return 0;
 }
