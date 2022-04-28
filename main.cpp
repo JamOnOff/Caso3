@@ -33,6 +33,9 @@ private:
     string opacidad = "";
     
     string color = "#000000";
+    int r = 0;
+    int g = 0;
+    int b = 0;
     
     //coordenada indicada por moveto
     double M_x = -1;
@@ -45,8 +48,9 @@ public:
         this->nodoXML = nodoXML;
     }
 
-    void setColor(string color) {
+    void setColor(char* color) {
         this->color = color;
+        sscanf(color, "#%02x%02x%02x", &r, &g, &b);
     }
     
     void setId(string id) {
@@ -68,6 +72,11 @@ public:
     
     string getColor() const {
         return color;
+    }
+    int* getColorRGB() const {
+        int colorRGB[3] = {r, g, b};
+        int* colorRGBPuntero = colorRGB;
+        return colorRGBPuntero;
     }
     
 
@@ -448,10 +457,11 @@ public:
         iniciarVecPaths();
     }
     
-    vector<Path*> seleccionar(double puntos[][2], int tamP, string* colores, int tamC){
+    vector<Path*> seleccionar(double puntos[][2], int tamP, int colores[][3], int tamC){
         // Programación Dinámica
         
         vector<Path*> pathSeleccionados = {};
+        vector<Path*> pathCorte = {};
         vector<double*> puntosCorte = {};
         
         // Recorre los puntos excluyendo los que están fuera del area
@@ -465,32 +475,52 @@ public:
             puntosCorte.push_back(p);
         }
         
-        // pasa los colores a un unordered_map
-        unordered_map<string, int> mapColores;
-        for (int i = 0; i < tamC; i++) {
-            string c = colores[i];
-            mapColores[c] = 1;
-        }
-        
+        // Recorre los paths excluyendo los que no tengan un color cercano a uno indicado.
+        int rango = 15;
+        int* c;
+        int* pathColor;
         Path* p;
-        double* punto;
         vector<Path*>::iterator fin = this->paths.end();
-        vector<double*>::iterator finPuntos = puntosCorte.end();
         for(vector<Path*>::iterator it = this->paths.begin(); it != fin; ++it) // Recorre los paths
         {   
             p = ((Path*)*it);
-            string pathColor = p->getColor(); // selecciona el color del path
+            pathColor = p->getColorRGB(); // selecciona el color rgb del path
             
-            // Si el path es de un color indicado
-            if (mapColores.find(pathColor) != mapColores.end())
-                for(vector<double*>::iterator itPuntos = puntosCorte.begin(); itPuntos != finPuntos; ++itPuntos) // Recorre los puntos
-                {   
-                    punto = ((double*)*itPuntos);
-                    if(p->isArea(punto[0], punto[1])){ // si el punto está en el area del path
-                        pathSeleccionados.push_back(p);
-                        break;
-                    }
+            for (int i = 0; i < tamC; i++) {
+                c = colores[i];
+                
+                if(c[0] - rango <= pathColor[0] && c[1] - rango <= pathColor[1] && c[2] - rango <= pathColor[2]
+                   && c[0] + rango >= pathColor[0] && c[1] + rango >= pathColor[1] && c[2] + rango >= pathColor[2]){
+                    pathCorte.push_back(p);
+                    break;
                 }
+            }
+        }
+        
+        // Recorre los paths de corte y los puntos de corte validando si coinciden
+        double* punto;
+        fin = pathCorte.end();
+        vector<double*>::iterator finPuntos = puntosCorte.end();
+        for(vector<Path*>::iterator it = pathCorte.begin(); it != fin; ++it) // Recorre los paths
+        {   
+            p = ((Path*)*it);
+            
+            for(vector<double*>::iterator itPuntos = puntosCorte.begin(); itPuntos != finPuntos; ++itPuntos) // Recorre los puntos
+            {   
+                punto = ((double*)*itPuntos);
+                if(p->isArea(punto[0], punto[1])){ // si el punto está en el area del path
+                    pathSeleccionados.push_back(p);
+                    break;
+                }
+            }
+        }
+        
+        // Pasa a posición relativa las coordenadas de los paths seleccionados
+        fin = pathSeleccionados.end();
+        for(vector<Path*>::iterator it = pathSeleccionados.begin(); it != fin; ++it) // Recorre los paths
+        {   
+            p = ((Path*)*it);
+            p->pasarRelativo();
         }
         
         return pathSeleccionados;
@@ -531,11 +561,11 @@ int main(int argc, char** argv) {
     
     double puntos[][2] = {{0,0},{100,100}};
     int tamP = (sizeof(puntos) / sizeof(puntos[0]));
-    string colores[] = {"#000000"};
+    int colores[][3] = {{0,0,0}};
     int tamC = (sizeof(colores) / sizeof(colores[0]));
     
     vector<Path*> pathSeleccionados = archivoXML->seleccionar(puntos, tamP, colores, tamC);
-    /*
+    
     Path* p;
     vector<Path*>::iterator fin = pathSeleccionados.end();
     for(vector<Path*>::iterator it = pathSeleccionados.begin(); it != fin; ++it)
@@ -543,7 +573,7 @@ int main(int argc, char** argv) {
         p = ((Path*)*it);
         p->imprimir();
     }
-    */
+    
     
     return 0;
 }
