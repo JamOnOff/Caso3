@@ -20,6 +20,15 @@
 using namespace std;
 using namespace rapidxml;
 
+double* recta(double x1, double y1, double x2, double y2){
+    double m = (y2 - y1) / (x2 - x1);
+    double b = y1 - (m*x1);
+    
+    double rectaInf[2] = {m, b};
+    double* rectaInfPuntero = rectaInf;
+    
+    return rectaInfPuntero;
+}
 
 class Path{
 private:
@@ -40,6 +49,7 @@ private:
     //coordenada indicada por moveto
     double M_x = -1;
     double M_y = -1;
+    double* M = new double(2);
     
     string d = "";
     
@@ -72,12 +82,13 @@ public:
         return opacidad;
     }
     
-    double* getPosMoveto() const {
-        double M[2] = {M_x, M_y};
-        double* Mpuntero = M;
-        return Mpuntero;
-    }
 
+    double* getPosMoveto() const {
+        this->M[0] = M_x;
+        this->M[1] = M_y;
+        
+        return M;
+    }
     
     string getColor() const {
         return color;
@@ -293,17 +304,28 @@ public:
             if(c == '-' && numStr == "")
                 numStr += c;
         }
-    
+        
+        this->M[0] = M_x;
+        this->M[1] = M_y;
+        
         this->areaInicio[0] = xMen;
         this->areaInicio[1] = yMen;
         this->areaFin[0] = xMay;
         this->areaFin[1] = yMay;
     }
     
-    
-    
     void imprimir(){
         cout << this->id << ";" << this->color << ";" << this->opacidad << ";M" << this->M_x << "," << this->M_y << this->d << endl;
+    }
+    void imprimirPosiciones(){
+        double* punto;
+        vector<double*>::iterator fin = this->posiciones.end();
+        for(vector<double*>::iterator it = this->posiciones.begin(); it != fin; ++it)
+        {   
+            punto = ((double*)*it);
+            cout << punto[0] << ", " << punto[1] << "\n";
+        }
+        cout << endl;
     }
 };
 
@@ -540,21 +562,25 @@ public:
         double xSig;
         double ySig;
         
+        // marca si es un angulo negativo
         bool negativo = false;
         if(angulo < 0)
             negativo = true;
         
         angulo = abs(angulo);
         
+        // Pasa el angulo a uno equivalente < 360
         double aux;
         if(angulo > 360){
             aux = ((double)(angulo/360)); // porcentaje
             angulo = (aux - ((int)aux)) * 360; // le quita la parte entera y define el angulo equivalente
         }
         
+        // Pasa el angulo negativo a uno equivalente positivo
         if(negativo)
             angulo = 360 - angulo;
         
+        // define el angulo en radianes
         double radianes = (angulo / 180) * M_PI;
         
         double x;
@@ -567,10 +593,12 @@ public:
             p = ((Path*)*it);
             posAct = p->getPosMoveto();
             
-            if(angulo != 0 && angulo != 90 && angulo != 180 && angulo != 270 && angulo != 360){
+            if(angulo != 0 && angulo != 90 && angulo != 180 && angulo != 270 && angulo != 360){ // si el angulo no es recto
+                
+                // Proceso para definir la posición final
                 double xDif;
                 double yDif;
-                // si está en el I o IV Cuadrante
+                // Si está en el I o IV Cuadrante
                 if((90 > angulo && angulo > 0) || (360 > angulo && angulo > 270)){
                     xDif = ancho - posAct[0];
                     yDif = tan(radianes) * xDif * -1;
@@ -583,7 +611,7 @@ public:
                 }
                 y = posAct[1] + yDif;
 
-                // si el 'Y' sobrepasó la imagen
+                // Si el 'Y' sobrepasó la imagen
                 if(y < 0 || y > alto){
                     if(y < 0){
                         yDif = posAct[1];
@@ -595,15 +623,50 @@ public:
                     }
                     xDif = abs(yDif / tan(radianes));
 
-                    // si está en el I o IV Cuadrante
+                    // Si está en el I o IV Cuadrante
                     if((90 > angulo && angulo > 0) || (360 > angulo && angulo > 270))
                         x = posAct[0] + xDif;
                     else
                         x = posAct[0] - xDif;
                 }
                 
-                // (x, y) es la posición final
+                // (x, y) Es la posición final
+                // Proceso para hayar los puntos de la recta
+                xSig = posAct[0];
+                ySig = posAct[1];
+                double* rectaInf = recta(xSig, ySig, x, y); // retorna {m, b}
+                double m = rectaInf[0];
+                double b = rectaInf[1];
                 
+                xDif = x - xSig;
+                yDif = y - ySig;
+                // Define los puntos según x
+                if(abs(xDif) > abs(yDif)){ 
+                    double incremento = xDif / abs(xDif);
+                    
+                    while((incremento == 1 && xSig < x) || (incremento == -1 && xSig > x)){
+                        xSig += incremento;
+                        ySig = (m * xSig) + b;
+                        
+                        double* punto = new double(2);
+                        punto[0] = xSig;
+                        punto[1] = ySig;
+                        p->posiciones.push_back(punto);
+                    }
+                }
+                else{// Define los puntos según y
+                    double incremento = yDif / abs(yDif);
+                    
+                    while((incremento == 1 && ySig < y) || (incremento == -1 && ySig > y)){
+                        ySig += incremento;
+                        xSig = (ySig - b) / m;
+                        
+                        double* punto = new double(2);
+                        punto[0] = xSig;
+                        punto[1] = ySig;
+                        p->posiciones.push_back(punto);
+                    }
+                }
             }
             else{
                 xSig = posAct[0];
@@ -633,15 +696,15 @@ public:
     void animacion(double puntos[][2], int tamP, int colores[][3], int tamC, double angulo){
         vector<Path*> pathSeleccionados = seleccionar(puntos, tamP, colores, tamC);
         ruta(pathSeleccionados, angulo);
-        /*
+        
         Path* p;
         vector<Path*>::iterator fin = pathSeleccionados.end();
         for(vector<Path*>::iterator it = pathSeleccionados.begin(); it != fin; ++it)
         {   
             p = ((Path*)*it);
-            p->imprimir();
+            p->imprimirPosiciones();
         }
-        */
+        
     }
     
     void imprimir(){
