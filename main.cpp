@@ -44,6 +44,9 @@ private:
     string d = "";
     
 public:
+    
+    vector<double*> posiciones;
+    
     void setNodoXML(xml_node<>* nodoXML) {
         this->nodoXML = nodoXML;
     }
@@ -67,6 +70,12 @@ public:
 
     string getOpacidad() const {
         return opacidad;
+    }
+    
+    double* getPosMoveto() const {
+        double M[2] = {M_x, M_y};
+        double* Mpuntero = M;
+        return Mpuntero;
     }
 
     
@@ -526,6 +535,115 @@ public:
         return pathSeleccionados;
     }
     
+    void ruta(vector<Path*> pathSeleccionados, double angulo){
+        double* posAct;
+        double xSig;
+        double ySig;
+        
+        bool negativo = false;
+        if(angulo < 0)
+            negativo = true;
+        
+        angulo = abs(angulo);
+        
+        double aux;
+        if(angulo > 360){
+            aux = ((double)(angulo/360)); // porcentaje
+            angulo = (aux - ((int)aux)) * 360; // le quita la parte entera y define el angulo equivalente
+        }
+        
+        if(negativo)
+            angulo = 360 - angulo;
+        
+        double radianes = (angulo / 180) * M_PI;
+        
+        double x;
+        double y;
+        
+        Path* p;
+        vector<Path*>::iterator fin = pathSeleccionados.end();
+        for(vector<Path*>::iterator it = pathSeleccionados.begin(); it != fin; ++it)
+        {   
+            p = ((Path*)*it);
+            posAct = p->getPosMoveto();
+            
+            if(angulo != 0 && angulo != 90 && angulo != 180 && angulo != 270 && angulo != 360){
+                double xDif;
+                double yDif;
+                // si está en el I o IV Cuadrante
+                if((90 > angulo && angulo > 0) || (360 > angulo && angulo > 270)){
+                    xDif = ancho - posAct[0];
+                    yDif = tan(radianes) * xDif * -1;
+                    x = ancho;
+                }
+                else{
+                    xDif = posAct[0];
+                    yDif = tan(radianes) * xDif;
+                    x = 0;
+                }
+                y = posAct[1] + yDif;
+
+                // si el 'Y' sobrepasó la imagen
+                if(y < 0 || y > alto){
+                    if(y < 0){
+                        yDif = posAct[1];
+                        y = 0;
+                    }
+                    else if(y > alto){
+                        yDif = alto - posAct[1];
+                        y = alto;
+                    }
+                    xDif = abs(yDif / tan(radianes));
+
+                    // si está en el I o IV Cuadrante
+                    if((90 > angulo && angulo > 0) || (360 > angulo && angulo > 270))
+                        x = posAct[0] + xDif;
+                    else
+                        x = posAct[0] - xDif;
+                }
+                
+                // (x, y) es la posición final
+                
+            }
+            else{
+                xSig = posAct[0];
+                ySig = posAct[1];
+                // mientras la posición no esté fuera de la imagen
+                while(0 < xSig && xSig < this->ancho && 
+                      0 < ySig && ySig < this->alto){
+
+                    if(angulo == 0 || angulo == 360)
+                        xSig++;
+                    else if(angulo == 180)
+                        xSig--;
+                    else if(angulo == 270)
+                        ySig++;
+                    else if(angulo == 90)
+                        ySig--;
+                    
+                    double posSig[2] = {xSig, ySig};
+                    double* posSigPuntero = posSig;
+                    p->posiciones.push_back(posSigPuntero);
+                }
+            }
+            
+        }
+    }
+    
+    void animacion(double puntos[][2], int tamP, int colores[][3], int tamC, double angulo){
+        vector<Path*> pathSeleccionados = seleccionar(puntos, tamP, colores, tamC);
+        ruta(pathSeleccionados, angulo);
+        /*
+        Path* p;
+        vector<Path*>::iterator fin = pathSeleccionados.end();
+        for(vector<Path*>::iterator it = pathSeleccionados.begin(); it != fin; ++it)
+        {   
+            p = ((Path*)*it);
+            p->imprimir();
+        }
+        */
+    }
+    
     void imprimir(){
         xml_node<>* nodo = raiz.first_node();
         imprimir(nodo);
@@ -564,16 +682,9 @@ int main(int argc, char** argv) {
     int colores[][3] = {{0,0,0}};
     int tamC = (sizeof(colores) / sizeof(colores[0]));
     
-    vector<Path*> pathSeleccionados = archivoXML->seleccionar(puntos, tamP, colores, tamC);
+    double angulo = -35;
     
-    Path* p;
-    vector<Path*>::iterator fin = pathSeleccionados.end();
-    for(vector<Path*>::iterator it = pathSeleccionados.begin(); it != fin; ++it)
-    {   
-        p = ((Path*)*it);
-        p->imprimir();
-    }
-    
+    archivoXML->animacion(puntos, tamP, colores, tamC, angulo);
     
     return 0;
 }
