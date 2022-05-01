@@ -53,9 +53,16 @@ private:
     
     string d = "";
     
+    // posibles posiciones donde se moverá el path
+    vector<double*> posiciones;
+    int posTam = 0;
+    
 public:
     
-    vector<double*> posiciones;
+    void addPosicion(double* pos){
+        posiciones.push_back(pos);
+        posTam++;
+    }
     
     void setNodoXML(xml_node<>* nodoXML) {
         this->nodoXML = nodoXML;
@@ -82,7 +89,15 @@ public:
         return opacidad;
     }
     
+    vector<double*> getPosiciones() const {
+        return posiciones;
+    }
+    
+    int getPosTam() const {
+        return posTam;
+    }
 
+    
     double* getPosMoveto() const {
         this->M[0] = M_x;
         this->M[1] = M_y;
@@ -340,153 +355,6 @@ private:
     double* areaInicio = NULL;
     double* areaFin = NULL;
     
-    void imprimir(xml_node<>* nodo){
-        // Imprime etiquetas y sus valores
-        cout << "Etiqueta: " << nodo->name() << endl;
-        for (xml_attribute<>* a = nodo->first_attribute(); a != NULL; a = a->next_attribute()) {
-            cout << "\tAtributo: " << a->name() << endl;
-            cout << "\t\tValor: " << a->value() << endl;
-        }
-        
-        // Recorre el primer hijo
-        xml_node<>* nodoNuevo = nodo->first_node(); 
-        if(nodoNuevo != NULL)
-            imprimir(nodoNuevo);
-        // Si no tiene primer hijo recorre a su siguiente hermano
-        nodoNuevo = nodo->next_sibling(); 
-        if(nodoNuevo != NULL)
-            imprimir(nodoNuevo);
-    }
-    
-    /*
-     * Lee el xml para definir el ancho y altura
-     */
-    bool setTam(xml_node<>* nodo){
-        if((string)nodo->name() == "svg"){
-            for (xml_attribute<>* a = nodo->first_attribute(); a != NULL; a = a->next_attribute()) {
-                if((string)a->name() == "viewBox"){
-                    string valores[4] = {};
-                    //split
-                    stringstream ss(a->value());
-                    string v;
-                    int i = 0;
-                    while (ss >> v) {
-                        valores[i] = v;
-                        i++;
-                    }
-
-                    this->ancho = strtod(valores[2].c_str(), NULL);
-                    this->alto = strtod(valores[3].c_str(), NULL);
-                    
-                    return true;
-                }
-            }
-        }
-        
-        // Recorre el primer hijo
-        xml_node<>* nodoNuevo = nodo->first_node(); 
-        if(nodoNuevo != NULL && setTam(nodoNuevo))
-            return true;
-        // Si no tiene primer hijo recorre a su siguiente hermano
-        nodoNuevo = nodo->next_sibling(); 
-        if(nodoNuevo != NULL && setTam(nodoNuevo))
-            return true;
-        
-        return false;
-    }
-    
-    void agregarPath(Path* p){
-        this->paths.push_back(p);
-        
-        double* areaIniPath = p->getAreaInicio();
-        double* areaFinPath = p->getAreaFin();
-        
-        // Se han definido las areas
-        if(this->areaInicio != NULL){
-            if(areaIniPath[0] < this->areaInicio[0])
-                this->areaInicio[0] = areaIniPath[0];
-            if(areaIniPath[1] < this->areaInicio[1])
-                this->areaInicio[1] = areaIniPath[1];
-            
-            if(areaFinPath[0] > this->areaFin[0])
-                this->areaFin[0] = areaFinPath[0];
-            if(areaFinPath[1] > this->areaFin[1])
-                this->areaFin[1] = areaFinPath[1];
-        }
-        else{ // No se ha definido el area
-            this->areaInicio = areaIniPath;
-            this->areaFin = areaFinPath;
-        }
-        
-    }
-    
-    void iniciarVecPaths_aux(xml_node<>* nodo){
-        if((string)nodo->name() == "path"){
-            Path* p = new Path();
-            for (xml_attribute<>* a = nodo->first_attribute(); a != NULL; a = a->next_attribute()) {
-                string atrNombre = (string)a->name();
-                
-                for_each(atrNombre.begin(), atrNombre.end(), [](char & c){
-                    c = ::tolower(c);
-                });
-                    
-                p->setNodoXML(nodo);
-                
-                if(atrNombre == "id")
-                    p->setId(a->value());
-                else if(atrNombre == "opacity")
-                    p->setOpacidad(a->value());
-                else if(atrNombre == "d")
-                    p->path(a->value());
-                else if(atrNombre == "fill")
-                    p->setColor(a->value());
-            }
-            agregarPath(p);
-        }
-        
-        // Recorre el primer hijo
-        xml_node<>* nodoNuevo = nodo->first_node();
-        if(nodoNuevo != NULL)
-            iniciarVecPaths_aux(nodoNuevo);
-        
-        // Si no tiene primer hijo recorre a su siguiente hermano
-        nodoNuevo = nodo->next_sibling(); 
-        if(nodoNuevo != NULL)
-            iniciarVecPaths_aux(nodoNuevo);
-    }
-    
-    /*
-     * Inicia el array de paths
-     */
-    void iniciarVecPaths(){
-        iniciarVecPaths_aux(this->raiz.first_node());
-    }
-    
-    /*
-     * Pone en 0s el array entrante
-     */
-    void limpiarNumArray(double *arr, int tam){
-        for (int i = 0; i < tam; i++)
-            arr[i] = 0;
-    }
-    
-    bool isArea(double x, double y){
-        return x >= this->areaInicio[0] && y >= this->areaInicio[1] && x <= this->areaFin[0] && y <= this->areaFin[1];
-    }
-    
-public:
-    XML(string dir){
-        // Pasa el string a char*
-        char arr[dir.length() + 1]; 
-        strcpy(arr, dir.c_str()); 
-        
-        file<> file(arr);           // Lee y carga el archivo en memoria
-        raiz.parse<0>(file.data()); // Parsea el xml a un arbol DOM
-        
-        setTam(raiz.first_node());
-        
-        iniciarVecPaths();
-    }
     
     vector<Path*> seleccionar(double puntos[][2], int tamP, int colores[][3], int tamC){
         // Programación Dinámica
@@ -651,7 +519,7 @@ public:
                         double* punto = new double(2);
                         punto[0] = xSig;
                         punto[1] = ySig;
-                        p->posiciones.push_back(punto);
+                        p->addPosicion(punto);
                     }
                 }
                 else{// Define los puntos según y
@@ -664,7 +532,7 @@ public:
                         double* punto = new double(2);
                         punto[0] = xSig;
                         punto[1] = ySig;
-                        p->posiciones.push_back(punto);
+                        p->addPosicion(punto);
                     }
                 }
             }
@@ -684,16 +552,205 @@ public:
                     else if(angulo == 90)
                         ySig--;
                     
-                    double posSig[2] = {xSig, ySig};
-                    double* posSigPuntero = posSig;
-                    p->posiciones.push_back(posSigPuntero);
+                    double* posSig = new double(2);
+                    posSig[0] = xSig;
+                    posSig[1] = ySig;
+                    p->addPosicion(posSig);
                 }
             }
             
         }
     }
     
-    void animacion(double puntos[][2], int tamP, int colores[][3], int tamC, double angulo){
+    void frame(vector<Path*> pathSeleccionados, int frames){
+        /*  Voraz
+         * 
+         *  Las etapas serían los frames a generar
+         * 
+         */
+        
+        // Descarta los paths que apenas de moverían
+        Path* p;
+        vector<Path*>::iterator fin = pathSeleccionados.end();
+        int pos = 1;
+        for(vector<Path*>::iterator it = pathSeleccionados.begin(); it != fin; ++it) // Recorre los paths
+        {   
+            p = ((Path*)*it); // Path
+            
+            // Borra el path Si la cantidad de puntos es menor al 50% de los frames
+            if(p->getPosTam() < frames * 0.5){
+                --it;
+                pathSeleccionados.erase(pos);
+                pos--;
+            }
+            
+            pos++;
+        }
+        
+        int tamPath = pathSeleccionados.size();
+        fin = pathSeleccionados.end();
+        for (int etapa = 1; i <= frames; etapa++) { // Recorre los paths para cada frame
+            for(vector<Path*>::iterator it = pathSeleccionados.begin(); it != fin; ++it) // Recorre los paths
+            {   
+                p = ((Path*)*it); // Path
+                
+                int pos = p->getPosTam() / frames; // Posición del punto a seleccionar para el frame
+                
+                
+            }
+        }
+    }
+    
+    void imprimir(xml_node<>* nodo){
+        // Imprime etiquetas y sus valores
+        cout << "Etiqueta: " << nodo->name() << endl;
+        for (xml_attribute<>* a = nodo->first_attribute(); a != NULL; a = a->next_attribute()) {
+            cout << "\tAtributo: " << a->name() << endl;
+            cout << "\t\tValor: " << a->value() << endl;
+        }
+        
+        // Recorre el primer hijo
+        xml_node<>* nodoNuevo = nodo->first_node(); 
+        if(nodoNuevo != NULL)
+            imprimir(nodoNuevo);
+        // Si no tiene primer hijo recorre a su siguiente hermano
+        nodoNuevo = nodo->next_sibling(); 
+        if(nodoNuevo != NULL)
+            imprimir(nodoNuevo);
+    }
+    
+    /*
+     * Lee el xml para definir el ancho y altura
+     */
+    bool setTam(xml_node<>* nodo){
+        if((string)nodo->name() == "svg"){
+            for (xml_attribute<>* a = nodo->first_attribute(); a != NULL; a = a->next_attribute()) {
+                if((string)a->name() == "viewBox"){
+                    string valores[4] = {};
+                    //split
+                    stringstream ss(a->value());
+                    string v;
+                    int i = 0;
+                    while (ss >> v) {
+                        valores[i] = v;
+                        i++;
+                    }
+
+                    this->ancho = strtod(valores[2].c_str(), NULL);
+                    this->alto = strtod(valores[3].c_str(), NULL);
+                    
+                    return true;
+                }
+            }
+        }
+        
+        // Recorre el primer hijo
+        xml_node<>* nodoNuevo = nodo->first_node(); 
+        if(nodoNuevo != NULL && setTam(nodoNuevo))
+            return true;
+        // Si no tiene primer hijo recorre a su siguiente hermano
+        nodoNuevo = nodo->next_sibling(); 
+        if(nodoNuevo != NULL && setTam(nodoNuevo))
+            return true;
+        
+        return false;
+    }
+    
+    void agregarPath(Path* p){
+        this->paths.push_back(p);
+        
+        double* areaIniPath = p->getAreaInicio();
+        double* areaFinPath = p->getAreaFin();
+        
+        // Se han definido las areas
+        if(this->areaInicio != NULL){
+            if(areaIniPath[0] < this->areaInicio[0])
+                this->areaInicio[0] = areaIniPath[0];
+            if(areaIniPath[1] < this->areaInicio[1])
+                this->areaInicio[1] = areaIniPath[1];
+            
+            if(areaFinPath[0] > this->areaFin[0])
+                this->areaFin[0] = areaFinPath[0];
+            if(areaFinPath[1] > this->areaFin[1])
+                this->areaFin[1] = areaFinPath[1];
+        }
+        else{ // No se ha definido el area
+            this->areaInicio = areaIniPath;
+            this->areaFin = areaFinPath;
+        }
+        
+    }
+    
+    void iniciarVecPaths_aux(xml_node<>* nodo){
+        if((string)nodo->name() == "path"){
+            Path* p = new Path();
+            for (xml_attribute<>* a = nodo->first_attribute(); a != NULL; a = a->next_attribute()) {
+                string atrNombre = (string)a->name();
+                
+                for_each(atrNombre.begin(), atrNombre.end(), [](char & c){
+                    c = ::tolower(c);
+                });
+                    
+                p->setNodoXML(nodo);
+                
+                if(atrNombre == "id")
+                    p->setId(a->value());
+                else if(atrNombre == "opacity")
+                    p->setOpacidad(a->value());
+                else if(atrNombre == "d")
+                    p->path(a->value());
+                else if(atrNombre == "fill")
+                    p->setColor(a->value());
+            }
+            agregarPath(p);
+        }
+        
+        // Recorre el primer hijo
+        xml_node<>* nodoNuevo = nodo->first_node();
+        if(nodoNuevo != NULL)
+            iniciarVecPaths_aux(nodoNuevo);
+        
+        // Si no tiene primer hijo recorre a su siguiente hermano
+        nodoNuevo = nodo->next_sibling(); 
+        if(nodoNuevo != NULL)
+            iniciarVecPaths_aux(nodoNuevo);
+    }
+    
+    /*
+     * Inicia el array de paths
+     */
+    void iniciarVecPaths(){
+        iniciarVecPaths_aux(this->raiz.first_node());
+    }
+    
+    /*
+     * Pone en 0s el array entrante
+     */
+    void limpiarNumArray(double *arr, int tam){
+        for (int i = 0; i < tam; i++)
+            arr[i] = 0;
+    }
+    
+    bool isArea(double x, double y){
+        return x >= this->areaInicio[0] && y >= this->areaInicio[1] && x <= this->areaFin[0] && y <= this->areaFin[1];
+    }
+    
+public:
+    XML(string dir){
+        // Pasa el string a char*
+        char arr[dir.length() + 1]; 
+        strcpy(arr, dir.c_str()); 
+        
+        file<> file(arr);           // Lee y carga el archivo en memoria
+        raiz.parse<0>(file.data()); // Parsea el xml a un arbol DOM
+        
+        setTam(raiz.first_node());
+        
+        iniciarVecPaths();
+    }
+    
+    
+    void animacion(double puntos[][2], int tamP, int colores[][3], int tamC, double angulo, int frames){
         vector<Path*> pathSeleccionados = seleccionar(puntos, tamP, colores, tamC);
         ruta(pathSeleccionados, angulo);
         
@@ -745,9 +802,10 @@ int main(int argc, char** argv) {
     int colores[][3] = {{0,0,0}};
     int tamC = (sizeof(colores) / sizeof(colores[0]));
     
-    double angulo = -35;
+    double angulo = 0;
+    int frames = 0;
     
-    archivoXML->animacion(puntos, tamP, colores, tamC, angulo);
+    archivoXML->animacion(puntos, tamP, colores, tamC, angulo, frames);
     
     return 0;
 }
