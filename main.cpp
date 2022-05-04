@@ -17,8 +17,17 @@
 #include <fstream>
 #include <bits/stdc++.h>
 
+#include <iostream>
+#include <fstream>
+
+#include <codecvt>
+#include <fcntl.h>
+#include <io.h>
+
 using namespace std;
 using namespace rapidxml;
+
+xml_document<> raiz; // Arbol DOM
 
 double* recta(double x1, double y1, double x2, double y2){
     double m = (y2 - y1) / (x2 - x1);
@@ -28,6 +37,18 @@ double* recta(double x1, double y1, double x2, double y2){
     double* rectaInfPuntero = rectaInf;
     
     return rectaInfPuntero;
+}
+
+char* strToChar(string str){
+    int tam = str.size();
+    char* arr = new char[tam];
+
+    int i;
+    for (i = 0; i < tam; i++) {
+        arr[i] = str[i];
+    }
+    
+    return arr;
 }
 
 class Path{
@@ -80,6 +101,13 @@ public:
     void setOpacidad(string opacidad) {
         this->opacidad = opacidad;
     }
+    
+    void setPosMoveto(double* M) {
+        this->M = M;
+        this->M_x = M[0];
+        this->M_y = M[1];
+    }
+
     
     string getId() const {
         return id;
@@ -329,9 +357,26 @@ public:
         this->areaFin[1] = yMay;
     }
     
+    void guardarPath(){
+        string* pathGuardar = new string();
+        pathGuardar[0] = "M" + to_string(this->M_x) + "," + to_string(this->M_y) + this->d;
+        
+        for (xml_attribute<>* a = nodoXML->first_attribute(); a != NULL; a = a->next_attribute()) {
+                string atrNombre = (string)a->name();
+                
+                for_each(atrNombre.begin(), atrNombre.end(), [](char & c){
+                    c = ::tolower(c);
+                });
+                    
+                if(atrNombre == "d")
+                    a->value(pathGuardar[0].c_str());
+        }
+    }
+    
     void imprimir(){
         cout << this->id << ";" << this->color << ";" << this->opacidad << ";M" << this->M_x << "," << this->M_y << this->d << endl;
     }
+    
     void imprimirPosiciones(){
         double* punto;
         vector<double*>::iterator fin = this->posiciones.end();
@@ -344,9 +389,14 @@ public:
     }
 };
 
+
+
+
 class XML{
 private:
-    xml_document<> raiz; // Arbol DOM
+    string nombre; // Nombre original del archivo
+    file<> xmlFile();
+    
     double ancho, alto;
     
     vector<Path*> paths = {};
@@ -562,14 +612,31 @@ private:
         }
     }
     
+    void guardarFrame(int frameNum){
+        string nuevoNombre = this->nombre + to_string(frameNum) + ".svg";
+        
+        
+        stringstream ss;
+        ss << *raiz.first_node(); // Pasa el nodo raiz al stringstream (ss)
+        string stringXML = ss.str(); // Pasa a string el xml
+        
+        
+        ofstream file(nuevoNombre.c_str());
+        file << stringXML; // Guarda el stringXML en el nuevo archivo
+        file.close();
+    }
+    
     void frame(vector<Path*> pathSeleccionados, int frames){
         /*  Voraz
          * 
-         *  Las etapas serían los frames a generar
-         * 
+         *  Las fases serían los frames a generar
+         *  
+         *  Óptimo: Posición (punto) a mover el path
+         *  Criterio: Punto que concuerde con la cantidad de puntos
+         *  dividido entre los frames
          */
         
-        // Descarta los paths que apenas de moverían
+        // Descarta los paths que apenas se moverían
         Path* p;
         vector<Path*>::iterator fin = pathSeleccionados.end();
         int pos = 1;
@@ -579,8 +646,8 @@ private:
             
             // Borra el path Si la cantidad de puntos es menor al 50% de los frames
             if(p->getPosTam() < frames * 0.5){
+                it = pathSeleccionados.erase(it);
                 --it;
-                pathSeleccionados.erase(pos);
                 pos--;
             }
             
@@ -589,15 +656,30 @@ private:
         
         int tamPath = pathSeleccionados.size();
         fin = pathSeleccionados.end();
-        for (int etapa = 1; i <= frames; etapa++) { // Recorre los paths para cada frame
-            for(vector<Path*>::iterator it = pathSeleccionados.begin(); it != fin; ++it) // Recorre los paths
+        for (int etapa = 1; etapa <= frames; etapa++) { // Recorre los paths para cada frame
+            for(vector<Path*>::iterator it = pathSeleccionados.begin(); it != fin; ++it)
             {   
                 p = ((Path*)*it); // Path
                 
-                int pos = p->getPosTam() / frames; // Posición del punto a seleccionar para el frame
+                // Criterio
+                int pos = p->getPosTam() / frames; // Posición del punto del path a seleccionar para el frame
                 
+                // Borra los puntos que estén antes del que se va a utilizar
+                if(pos-1 > 0){
+                    vector<double*>::iterator itPosIni = p->getPosiciones().begin();
+                    p->getPosiciones().erase(itPosIni, itPosIni + pos - 2);
+                }
+                double* punto = ((double*)*(p->getPosiciones().begin()));
+                double* puntoMover = new double[2];
+                puntoMover[0] = punto[0];
+                puntoMover[1] = punto[1];
                 
+                p->setPosMoveto(puntoMover);
+                p->guardarPath();
             }
+            // Se ha actualizado las posiciones de los paths
+            // Guarda el xml como nuevo frame
+            guardarFrame(etapa);
         }
     }
     
@@ -605,8 +687,8 @@ private:
         // Imprime etiquetas y sus valores
         cout << "Etiqueta: " << nodo->name() << endl;
         for (xml_attribute<>* a = nodo->first_attribute(); a != NULL; a = a->next_attribute()) {
-            cout << "\tAtributo: " << a->name() << endl;
-            cout << "\t\tValor: " << a->value() << endl;
+            cout << "\tAtributo: " << a->name();
+            cout << "\tValor: " << a->value();
         }
         
         // Recorre el primer hijo
@@ -701,6 +783,8 @@ private:
                     p->path(a->value());
                 else if(atrNombre == "fill")
                     p->setColor(a->value());
+                else if(atrNombre == "stroke")
+                    p->setColor(a->value());
             }
             agregarPath(p);
         }
@@ -720,7 +804,7 @@ private:
      * Inicia el array de paths
      */
     void iniciarVecPaths(){
-        iniciarVecPaths_aux(this->raiz.first_node());
+        iniciarVecPaths_aux(raiz.first_node());
     }
     
     /*
@@ -738,11 +822,7 @@ private:
 public:
     XML(string dir){
         // Pasa el string a char*
-        char arr[dir.length() + 1]; 
-        strcpy(arr, dir.c_str()); 
-        
-        file<> file(arr);           // Lee y carga el archivo en memoria
-        raiz.parse<0>(file.data()); // Parsea el xml a un arbol DOM
+        this->nombre = dir.substr(0, dir.length()-4); // Guarda el nombre original del archivo
         
         setTam(raiz.first_node());
         
@@ -752,15 +832,9 @@ public:
     
     void animacion(double puntos[][2], int tamP, int colores[][3], int tamC, double angulo, int frames){
         vector<Path*> pathSeleccionados = seleccionar(puntos, tamP, colores, tamC);
-        ruta(pathSeleccionados, angulo);
         
-        Path* p;
-        vector<Path*>::iterator fin = pathSeleccionados.end();
-        for(vector<Path*>::iterator it = pathSeleccionados.begin(); it != fin; ++it)
-        {   
-            p = ((Path*)*it);
-            p->imprimirPosiciones();
-        }
+        ruta(pathSeleccionados, angulo);
+        frame(pathSeleccionados, frames);
         
     }
     
@@ -789,13 +863,24 @@ public:
         cout << this->areaInicio[0] << "," << this->areaInicio[1] 
              << ";" << this->areaFin[0] << "," << this->areaFin[1] << endl;
     }
+    
+    void imprimirXML(){
+        cout << *raiz.first_node() << endl;
+    }
 };
 
 /*
  * 
  */
 int main(int argc, char** argv) {
-    XML* archivoXML = new XML("wifi-1.svg");
+    string nombre = "wifi.svg";
+    char* arr = strToChar(nombre);
+    file<> file(arr);
+    
+    raiz.parse<0>(file.data()); // Parsea el xml a un arbol DOM
+    
+    XML* archivoXML = new XML(nombre);
+    
     
     double puntos[][2] = {{0,0},{100,100}};
     int tamP = (sizeof(puntos) / sizeof(puntos[0]));
@@ -803,7 +888,7 @@ int main(int argc, char** argv) {
     int tamC = (sizeof(colores) / sizeof(colores[0]));
     
     double angulo = 0;
-    int frames = 0;
+    int frames = 60;
     
     archivoXML->animacion(puntos, tamP, colores, tamC, angulo, frames);
     
