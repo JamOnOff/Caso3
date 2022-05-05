@@ -72,7 +72,8 @@ private:
     double M_y = -1;
     double* M = new double(2);
     
-    string d = "";
+    string d;
+    vector<vector<double>> vectorD;
     
     // posibles posiciones donde se moverá el path
     vector<double*> posiciones;
@@ -102,7 +103,41 @@ public:
         this->opacidad = opacidad;
     }
     
-    void setPosMoveto(double* M) {
+    void mover(double* M) {
+        // Actualiza los puntos del path
+        vector<double> instruc; // Vector de datos de la instrucción
+        
+        int tam = this->vectorD.size();
+        for (int i = 0; i < tam; i++) {
+           instruc = this->vectorD[i]; // Selecciona la instrucción del path
+           
+           double dato;
+           int cont = 0;
+           int tamInstuc = instruc.size();
+           // Recorre la instrucción
+           for (int j = 0; j < tamInstuc; j++) {
+                dato = instruc[j]; // Selecciona el dato almacenado de la instrucción
+                
+                if(cont == 0){ // El dato es el código de instrucción
+                    // Si la instrucción es relativa no actualiza nada
+                    if(int('a') <= dato && dato <= int('z') && (dato != int('m'))) 
+                        break;
+                    cont = 1;
+                }
+                else{ // El dato es una coordenada x o y
+                    if(cont == 1){ // X
+                        this->vectorD[i][j] = abs(this->vectorD[i][j]) - abs(this->M_x) + M[0];
+                        cont = 2;
+                    }
+                    else{ // Y
+                        this->vectorD[i][j] = abs(this->vectorD[i][j]) - abs(this->M_y) + M[1];
+                        cont = 1;
+                    }
+                }
+            }
+        }
+        
+        //Actualiza el moveto
         this->M = M;
         this->M_x = M[0];
         this->M_y = M[1];
@@ -156,20 +191,17 @@ public:
     }
     
     /*
-     * Pasa a posición relativa las coordenadas del path
+     * Pasa el path a un vector de double
      */
-    void pasarRelativo(){
-        string nuevoPath = "";
+    void pasarAVector(){
+        vector<double>* instruc = new vector<double>();
         
         string numStr = ""; // donde se gurdan los char del numero a pasar a double
-        char codigo = ' '; // codigo el cual se está recorriendo
         
         bool punto = false; // si ya se ha agregado al número un '.'
         
         int pos = 0; // posicion a insertar en aux
         double aux[2]; // guarda el punto encontrado y que se debe procesar
-        
-        bool posAbs = false; // indica si es una posicion absoluta
         
         int tam = this->d.size();
         for (int i = 0; i < tam; i++) {
@@ -183,20 +215,16 @@ public:
             }
             else{
                 // si el char es un código
-                if(int('A') <= int(c) && int(c) <= int('Z')){
-                    posAbs = true;
+                if((int('A') <= int(c) && int(c) <= int('Z')) || (int('a') <= int(c) && int(c) <= int('z'))){
                     
-                    // pasa codigo a relativo (minuscula)
-                    codigo = char(int('a') + int(c) - int('A'));
+                    // Guarda la instrucción anterior
+                    if(!instruc->empty()){
+                        vectorD.push_back(*instruc);
+                        instruc = new vector<double>();
+                    }
                     
-                    nuevoPath += codigo;
-                }
-                else if(int('a') <= int(c) && int(c) <= int('z')){
-                    posAbs = false;
-                    codigo = c;
-                    
-                    if(c != 'z')
-                        nuevoPath += c;
+                    // Guarda el código de instrucción actual
+                    instruc->push_back(double(c));
                 }
                 
                 if(numStr != ""){
@@ -207,14 +235,9 @@ public:
                     
                     if(pos == 2){
                         // Pasa la coordenada en aux a relativo
-                        if(posAbs){
-                            aux[0] -= this->M_x;
-                            aux[1] -= this->M_y;
-                        }
-                        if(int('0') <= int(nuevoPath[nuevoPath.size()-1]) && int(nuevoPath[nuevoPath.size()-1]) <= int('9'))
-                            nuevoPath += ',';
                         
-                        nuevoPath += to_string(aux[0]) + ',' + to_string(aux[1]);
+                        instruc->push_back(aux[0]);
+                        instruc->push_back(aux[1]);
                         
                         pos = 0;
                         aux[0] = 0;
@@ -230,8 +253,8 @@ public:
                 numStr += c;
         }
         
-        nuevoPath += 'z';
-        this->d = nuevoPath;
+        if(!instruc->empty())
+            vectorD.push_back(*instruc);
     }
     
     /*
@@ -359,8 +382,38 @@ public:
     
     void guardarPath(){
         string* pathGuardar = new string();
-        pathGuardar[0] = "M" + to_string(this->M_x) + "," + to_string(this->M_y) + this->d;
         
+        // Generar nuevo string del path
+        string path = "M" + to_string(this->M_x) + ',' + to_string(this->M_y);
+        vector<double> instruc; // Vector de datos de la instrucción
+        
+        int tam = this->vectorD.size();
+        for (int i = 0; i < tam; i++) {
+           instruc = this->vectorD[i]; // Selecciona la instrucción del path
+           
+           double dato;
+           int cont = 0;
+           int tamInstuc = instruc.size();
+           // Recorre la instrucción
+           for (int j = 0; j < tamInstuc; j++) {
+                dato = instruc[j]; // Selecciona el dato almacenado de la instrucción
+                
+                if(cont == 0){ // El dato es el código de instrucción
+                    cont++;
+                    
+                    if(path != "" && path[path.size()-1] == ',') // Quita el ultimo char de ser este una coma
+                        path = path.substr(0, path.size()-1);
+                    
+                    path += char(dato);
+                }
+                else // El dato es una coordenada x o y
+                    path += to_string(dato) + ',';
+            }
+        }
+        pathGuardar[0] = path;
+        
+        
+        // Busca el 'd' y reemplaza su valor por el sting generado
         for (xml_attribute<>* a = nodoXML->first_attribute(); a != NULL; a = a->next_attribute()) {
                 string atrNombre = (string)a->name();
                 
@@ -371,6 +424,11 @@ public:
                 if(atrNombre == "d")
                     a->value(pathGuardar[0].c_str());
         }
+    }
+    
+    void posicionesBorrarCant(int cant){
+        vector<double*>::iterator itPosIni = this->posiciones.begin();
+        this->posiciones.erase(itPosIni, itPosIni + cant - 1);
     }
     
     void imprimir(){
@@ -407,13 +465,25 @@ private:
     
     
     vector<Path*> seleccionar(double puntos[][2], int tamP, int colores[][3], int tamC){
-        // Programación Dinámica
+        /*
+         *  Programación Dinámica
+         * 
+         *  Al creara el objeto XML se carga la información de cada path en objetos path 
+         *  y se define un area general de corte. O(n*m)
+         *  
+         *  1. Recorre los puntos indicados excluyendo los que están fuera del area general. O(n)
+         *  2. Recorre los paths excluyendo los que no tengan un color cercano a uno indicado. O(n*m)
+         *  3. Recorre los paths de corte validando si su area coincide con u punto de corte,
+         *  de ser así lo agrega al vector pathSeleccionados. O(n*m)
+         * 
+         *  Prepara los paths para la función de ruta: Pasa la información del path a un vector O(n*m)
+         */
         
         vector<Path*> pathSeleccionados = {};
         vector<Path*> pathCorte = {};
         vector<double*> puntosCorte = {};
         
-        // Recorre los puntos excluyendo los que están fuera del area
+        // 1. Recorre los puntos excluyendo los que están fuera del area
         for (int i = 0; i < tamP; i++) {
             double* p = puntos[i];
 
@@ -424,7 +494,7 @@ private:
             puntosCorte.push_back(p);
         }
         
-        // Recorre los paths excluyendo los que no tengan un color cercano a uno indicado.
+        // 2. Recorre los paths excluyendo los que no tengan un color cercano a uno indicado.
         int rango = 15;
         int* c;
         int* pathColor;
@@ -440,13 +510,14 @@ private:
                 
                 if(c[0] - rango <= pathColor[0] && c[1] - rango <= pathColor[1] && c[2] - rango <= pathColor[2]
                    && c[0] + rango >= pathColor[0] && c[1] + rango >= pathColor[1] && c[2] + rango >= pathColor[2]){
+                    
                     pathCorte.push_back(p);
                     break;
                 }
             }
         }
         
-        // Recorre los paths de corte y los puntos de corte validando si coinciden
+        // 3. Recorre los paths de corte y los puntos de corte validando si coinciden
         double* punto;
         fin = pathCorte.end();
         vector<double*>::iterator finPuntos = puntosCorte.end();
@@ -464,18 +535,26 @@ private:
             }
         }
         
-        // Pasa a posición relativa las coordenadas de los paths seleccionados
+        // Pasa la información del path a un vector
         fin = pathSeleccionados.end();
         for(vector<Path*>::iterator it = pathSeleccionados.begin(); it != fin; ++it) // Recorre los paths
         {   
             p = ((Path*)*it);
-            p->pasarRelativo();
+            p->pasarAVector();
         }
         
         return pathSeleccionados;
     }
     
     void ruta(vector<Path*> pathSeleccionados, double angulo){
+        /*  
+         *  Recorre los paths seleccionados y para cada path calcula la ruta (recta)
+         *  de ser necesario. De ser un angulo recto incrementa el 'x' o 'y'.
+         *  Luego guarda todos los puntos calculados en el objeto path.
+         * 
+         *  El incremento base es 1 en 'x' o 'y'
+         * 
+         */
         double* posAct;
         double xSig;
         double ySig;
@@ -506,11 +585,12 @@ private:
         
         Path* p;
         vector<Path*>::iterator fin = pathSeleccionados.end();
-        for(vector<Path*>::iterator it = pathSeleccionados.begin(); it != fin; ++it)
+        for(vector<Path*>::iterator it = pathSeleccionados.begin(); it != fin; ++it) // Recorre los paths
         {   
             p = ((Path*)*it);
             posAct = p->getPosMoveto();
             
+            // Si no es un ángulo recto
             if(angulo != 0 && angulo != 90 && angulo != 180 && angulo != 270 && angulo != 360){ // si el angulo no es recto
                 
                 // Proceso para definir la posición final
@@ -586,7 +666,7 @@ private:
                     }
                 }
             }
-            else{
+            else{ // Es un ángulo recto
                 xSig = posAct[0];
                 ySig = posAct[1];
                 // mientras la posición no esté fuera de la imagen
@@ -662,19 +742,19 @@ private:
                 p = ((Path*)*it); // Path
                 
                 // Criterio
-                int pos = p->getPosTam() / frames; // Posición del punto del path a seleccionar para el frame
+                // incremento aproximado para la posición siguiente
+                int pos = p->getPosTam() / frames; // Posición del punto del path a seleccionar para el frame (p->getPosTam() cantidad de puntos)
                 
                 // Borra los puntos que estén antes del que se va a utilizar
-                if(pos-1 > 0){
-                    vector<double*>::iterator itPosIni = p->getPosiciones().begin();
-                    p->getPosiciones().erase(itPosIni, itPosIni + pos - 2);
-                }
+                if(pos-1 > 0)
+                    p->posicionesBorrarCant(pos);
+                
                 double* punto = ((double*)*(p->getPosiciones().begin()));
                 double* puntoMover = new double[2];
                 puntoMover[0] = punto[0];
                 puntoMover[1] = punto[1];
                 
-                p->setPosMoveto(puntoMover);
+                p->mover(puntoMover);
                 p->guardarPath();
             }
             // Se ha actualizado las posiciones de los paths
@@ -882,13 +962,13 @@ int main(int argc, char** argv) {
     XML* archivoXML = new XML(nombre);
     
     
-    double puntos[][2] = {{0,0},{100,100}};
+    double puntos[][2] = {{0,0},{100,100},{1000,1000},{300,350},{3000,3500}};
     int tamP = (sizeof(puntos) / sizeof(puntos[0]));
     int colores[][3] = {{0,0,0}};
     int tamC = (sizeof(colores) / sizeof(colores[0]));
     
-    double angulo = 0;
-    int frames = 60;
+    double angulo = -35;
+    int frames = 30;
     
     archivoXML->animacion(puntos, tamP, colores, tamC, angulo, frames);
     
