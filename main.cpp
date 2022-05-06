@@ -378,6 +378,8 @@ public:
         this->areaInicio[1] = yMen;
         this->areaFin[0] = xMay;
         this->areaFin[1] = yMay;
+        
+        pasarAVector();
     }
     
     void guardarPath(){
@@ -468,15 +470,22 @@ private:
         /*
          *  Programación Dinámica
          * 
-         *  Al creara el objeto XML se carga la información de cada path en objetos path 
-         *  y se define un area general de corte. O(n*m)
-         *  
+         *  Al creara el objeto XML se carga la información de cada path en objetos path, 
+         *  se define un area general de corte y prepara los paths para la función de ruta: 
+         *  Pasa la información del path a un vector. O(n*m)
+         * 
+         *  Puntos
          *  1. Recorre los puntos indicados excluyendo los que están fuera del area general. O(n)
-         *  2. Recorre los paths excluyendo los que no tengan un color cercano a uno indicado. O(n*m)
-         *  3. Recorre los paths de corte validando si su area coincide con u punto de corte,
+         *  
+         *  Colores
+         *  2.1. Recorre los colores introduciéndolos en un array, los combina de haber más de 5. O(n)
+         *  2.2. Crea un vector de paths corte según los colores de corte. O(n)
+         *  
+         *  Selección
+         *  3. Recorre los paths de corte validando si su area coincide con un punto de corte,
          *  de ser así lo agrega al vector pathSeleccionados. O(n*m)
          * 
-         *  Prepara los paths para la función de ruta: Pasa la información del path a un vector O(n*m)
+         *  
          */
         
         vector<Path*> pathSeleccionados = {};
@@ -494,53 +503,130 @@ private:
             puntosCorte.push_back(p);
         }
         
-        // 2. Recorre los paths excluyendo los que no tengan un color cercano a uno indicado.
-        int rango = 15;
-        int* c;
-        int* pathColor;
-        Path* p;
-        vector<Path*>::iterator fin = this->paths.end();
-        for(vector<Path*>::iterator it = this->paths.begin(); it != fin; ++it) // Recorre los paths
-        {   
-            p = ((Path*)*it);
-            pathColor = p->getColorRGB(); // selecciona el color rgb del path
-            
-            for (int i = 0; i < tamC; i++) {
-                c = colores[i];
-                
-                if(c[0] - rango <= pathColor[0] && c[1] - rango <= pathColor[1] && c[2] - rango <= pathColor[2]
-                   && c[0] + rango >= pathColor[0] && c[1] + rango >= pathColor[1] && c[2] + rango >= pathColor[2]){
+        // 2.1. Recorre los colores introduciéndolos en un array, los combina de haber más de 5.
+        auto coloresCorte = new int[5][3];
+        int* c; // color seleccionado
+        int posColorC = 0; // posición de color corte
+        
+        int combinados = 0; // Cantidad de colores que se combinaron con el ultimo color (coloresCorte[4])
+        int difProm = 0; // Diferencia promedio entre los colores combinados
+        for (int i = 0; i < tamC; i++) {
+             c = colores[i]; // Selecciona el color
+            // Inserta el color
+            if(posColorC < 5){
+                coloresCorte[posColorC][0] = c[0];
+                coloresCorte[posColorC][1] = c[1];
+                coloresCorte[posColorC][2] = c[2];
+                posColorC++;
+            }
+            // Si no haber espacio y faltan colores estos los combina con el último insertado
+            else{ 
+                // diferencia promedio
+                int difPromAux = 0;
+                difPromAux += abs(colores[i-1][0] - colores[i][0]);
+                difPromAux += abs(colores[i-1][1] - colores[i][1]);
+                difPromAux += abs(colores[i-1][2] - colores[i][2]);
+                // Si difPromAux == 0, el color está repetido
+                if(difPromAux != 0){ 
+                    coloresCorte[4][0] += c[0]; 
+                    coloresCorte[4][1] += c[1]; 
+                    coloresCorte[4][2] += c[2]; 
                     
-                    pathCorte.push_back(p);
-                    break;
+                    difProm += difPromAux;
+                    
+                    combinados++;
                 }
             }
         }
+        // Define el color promedio de los colores combinados
+        if(combinados > 0){
+            if(difProm != 0){
+                coloresCorte[4][0] /= combinados + 1;
+                coloresCorte[4][1] /= combinados + 1;
+                coloresCorte[4][2] /= combinados + 1;
+            }
+            // diferencia promedio
+            difProm /= combinados * 3;
+        }
+        
+        // 2.2. Crea un vector de paths corte según los colores de corte
+        int rango = 20;
+        
+        int* pathColor;
+        Path* p;
+        int tamPaths = this->paths.size();
+        for (int i = 0; i < tamPaths; i++) {
+            p = this->paths[i];
+            
+            c = p->getColorRGB();
+            
+            // Si difProm > rango, Se estarían incluyendo colores fuera de rango
+            
+            // posColorC tendría la cantidad de colores en el array
+            int rangoConbinados = rango + ((difProm * combinados)/2);
+            if(difProm == 0)
+                rangoConbinados = rango;
+            
+            int r = c[0]; 
+            int g = c[1]; 
+            int b = c[0]; 
+            if(posColorC >= 1
+               && coloresCorte[0][0] - rango <= r && r <= coloresCorte[0][0] + rango
+               && coloresCorte[0][1] - rango <= g && g <= coloresCorte[0][1] + rango
+               && coloresCorte[0][2] - rango <= b && b <= coloresCorte[0][2] + rango){
+                
+                pathCorte.push_back(p);
+                break;
+            }
+            else if(posColorC >= 2
+               && coloresCorte[1][0] - rango <= r && r <= coloresCorte[1][0] + rango
+               && coloresCorte[1][1] - rango <= g && g <= coloresCorte[1][1] + rango
+               && coloresCorte[1][2] - rango <= b && b <= coloresCorte[1][2] + rango){
+                
+                pathCorte.push_back(p);
+                break;
+            }
+            else if(posColorC >= 3
+               && coloresCorte[2][0] - rango <= r && r <= coloresCorte[2][0] + rango
+               && coloresCorte[2][1] - rango <= g && g <= coloresCorte[2][1] + rango
+               && coloresCorte[2][2] - rango <= b && b <= coloresCorte[2][2] + rango){
+                
+                pathCorte.push_back(p);
+                break;
+            }
+            else if(posColorC >= 4
+               && coloresCorte[3][0] - rango <= r && r <= coloresCorte[3][0] + rango
+               && coloresCorte[3][1] - rango <= g && g <= coloresCorte[3][1] + rango
+               && coloresCorte[3][2] - rango <= b && b <= coloresCorte[3][2] + rango){
+                
+                pathCorte.push_back(p);
+                break;
+            }
+            else if(posColorC == 5
+               && coloresCorte[4][0] - rangoConbinados <= r && r <= coloresCorte[4][0] + rangoConbinados
+               && coloresCorte[4][1] - rangoConbinados <= g && g <= coloresCorte[4][1] + rangoConbinados
+               && coloresCorte[4][2] - rangoConbinados <= b && b <= coloresCorte[4][2] + rangoConbinados){
+                
+                pathCorte.push_back(p);
+                break;
+            }
+        }
+
         
         // 3. Recorre los paths de corte y los puntos de corte validando si coinciden
         double* punto;
-        fin = pathCorte.end();
-        vector<double*>::iterator finPuntos = puntosCorte.end();
-        for(vector<Path*>::iterator it = pathCorte.begin(); it != fin; ++it) // Recorre los paths
-        {   
-            p = ((Path*)*it);
+        tamPaths = pathCorte.size();
+        int tamPuntosC = puntosCorte.size();
+        for (int i = 0; i < tamPaths; i++){   
+            p = pathCorte[i];
             
-            for(vector<double*>::iterator itPuntos = puntosCorte.begin(); itPuntos != finPuntos; ++itPuntos) // Recorre los puntos
-            {   
-                punto = ((double*)*itPuntos);
+            for (int j = 0; j < tamPuntosC; j++) {
+                punto = puntosCorte[j];
                 if(p->isArea(punto[0], punto[1])){ // si el punto está en el area del path
                     pathSeleccionados.push_back(p);
                     break;
                 }
             }
-        }
-        
-        // Pasa la información del path a un vector
-        fin = pathSeleccionados.end();
-        for(vector<Path*>::iterator it = pathSeleccionados.begin(); it != fin; ++it) // Recorre los paths
-        {   
-            p = ((Path*)*it);
-            p->pasarAVector();
         }
         
         return pathSeleccionados;
@@ -964,11 +1050,11 @@ int main(int argc, char** argv) {
     
     double puntos[][2] = {{0,0},{100,100},{1000,1000},{300,350},{3000,3500}};
     int tamP = (sizeof(puntos) / sizeof(puntos[0]));
-    int colores[][3] = {{0,0,0}};
+    int colores[][3] = {{56,48,222},{78,33,1},{255,255,255},{101,230,110},{101,110,110},{101,110,110},{0,0,0},{255,255,255}};
     int tamC = (sizeof(colores) / sizeof(colores[0]));
     
-    double angulo = -35;
-    int frames = 30;
+    double angulo = 180-35;
+    int frames = 40;
     
     archivoXML->animacion(puntos, tamP, colores, tamC, angulo, frames);
     
