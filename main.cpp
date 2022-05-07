@@ -73,7 +73,7 @@ private:
     double* M = new double(2);
     
     string d;
-    vector<vector<double>> vectorD;
+    vector<string> vectorD;
     
     // posibles posiciones donde se moverá el path
     vector<double*> posiciones;
@@ -105,34 +105,41 @@ public:
     
     void mover(double* M) {
         // Actualiza los puntos del path
-        vector<double> instruc; // Vector de datos de la instrucción
+        string dato;
+        bool absoluta = false; // si la instruccion es absoluta o relativa
+        
+        int cont = 1;
         
         int tam = this->vectorD.size();
         for (int i = 0; i < tam; i++) {
-           instruc = this->vectorD[i]; // Selecciona la instrucción del path
+            dato = this->vectorD[i]; // Selecciona el dato del path (código o num)
            
-           double dato;
-           int cont = 0;
-           int tamInstuc = instruc.size();
-           // Recorre la instrucción
-           for (int j = 0; j < tamInstuc; j++) {
-                dato = instruc[j]; // Selecciona el dato almacenado de la instrucción
-                
-                if(cont == 0){ // El dato es el código de instrucción
-                    // Si la instrucción es relativa no actualiza nada
-                    if(int('a') <= dato && dato <= int('z') && (dato != int('m'))) 
-                        break;
-                    cont = 1;
+            if(dato == "M" || dato == "m"){
+                absoluta = false;
+                cont = 1;
+                continue;
+            }
+            if(dato.size() == 1){
+                if(int('a') <= int(dato[0]) && int(dato[0]) <= int('z')){
+                    absoluta = false;
+                    continue;
                 }
-                else{ // El dato es una coordenada x o y
-                    if(cont == 1){ // X
-                        this->vectorD[i][j] = abs(this->vectorD[i][j]) - abs(this->M_x) + M[0];
-                        cont = 2;
-                    }
-                    else{ // Y
-                        this->vectorD[i][j] = abs(this->vectorD[i][j]) - abs(this->M_y) + M[1];
-                        cont = 1;
-                    }
+                else if(int('A') <= int(dato[0]) && int(dato[0]) <= int('Z')){
+                    absoluta = true;
+                    cont = 1;
+                    continue;
+                }
+            }
+            
+            if(absoluta){ // El dato es una coordenada x o y
+                double num = stod(dato);
+                if(cont == 1){ // X
+                    this->vectorD[i] = to_string(abs(num) - abs(this->M_x) + M[0]);
+                    cont = 2;
+                }
+                else{ // Y
+                    this->vectorD[i] = to_string(abs(num) - abs(this->M_y) + M[1]);
+                    cont = 1;
                 }
             }
         }
@@ -194,8 +201,6 @@ public:
      * Pasa el path a un vector de double
      */
     void pasarAVector(){
-        vector<double>* instruc = new vector<double>();
-        
         string numStr = ""; // donde se gurdan los char del numero a pasar a double
         
         bool punto = false; // si ya se ha agregado al número un '.'
@@ -214,47 +219,24 @@ public:
                     punto = true;
             }
             else{
-                // si el char es un código
-                if((int('A') <= int(c) && int(c) <= int('Z')) || (int('a') <= int(c) && int(c) <= int('z'))){
-                    
-                    // Guarda la instrucción anterior
-                    if(!instruc->empty()){
-                        vectorD.push_back(*instruc);
-                        instruc = new vector<double>();
-                    }
-                    
-                    // Guarda el código de instrucción actual
-                    instruc->push_back(double(c));
-                }
-                
                 if(numStr != ""){
-                    // Define el punto en aux
-                    aux[pos] = stod(numStr);
-
-                    pos++;
-                    
-                    if(pos == 2){
-                        // Pasa la coordenada en aux a relativo
-                        
-                        instruc->push_back(aux[0]);
-                        instruc->push_back(aux[1]);
-                        
-                        pos = 0;
-                        aux[0] = 0;
-                        aux[1] = 0;
-                    }
+                    this->vectorD.push_back(numStr);
                     
                     numStr = "";
                     punto = false;
+                }
+                // si el char es un código
+                if((int('A') <= int(c) && int(c) <= int('Z')) || (int('a') <= int(c) && int(c) <= int('z'))){
+                    // Guarda el código de instrucción actual
+                    string codigo = "";
+                    codigo += c;
+                    this->vectorD.push_back(codigo);
                 }
             }
             
             if(c == '-' && numStr == "")
                 numStr += c;
         }
-        
-        if(!instruc->empty())
-            vectorD.push_back(*instruc);
     }
     
     /*
@@ -387,30 +369,26 @@ public:
         
         // Generar nuevo string del path
         string path = "M" + to_string(this->M_x) + ',' + to_string(this->M_y);
-        vector<double> instruc; // Vector de datos de la instrucción
         
+        string dato;
+        int cont = 0;
         int tam = this->vectorD.size();
         for (int i = 0; i < tam; i++) {
-           instruc = this->vectorD[i]; // Selecciona la instrucción del path
-           
-           double dato;
-           int cont = 0;
-           int tamInstuc = instruc.size();
-           // Recorre la instrucción
-           for (int j = 0; j < tamInstuc; j++) {
-                dato = instruc[j]; // Selecciona el dato almacenado de la instrucción
+            dato = this->vectorD[i];
+            
+            // El dato es el código de instrucción
+            if(dato.size() == 1 && ((int('a') <= int(dato[0]) && int(dato[0]) <= int('z')) 
+               || (int('A') <= int(dato[0]) && int(dato[0]) <= int('Z')))){
                 
-                if(cont == 0){ // El dato es el código de instrucción
-                    cont++;
-                    
-                    if(path != "" && path[path.size()-1] == ',') // Quita el ultimo char de ser este una coma
-                        path = path.substr(0, path.size()-1);
-                    
-                    path += char(dato);
-                }
-                else // El dato es una coordenada x o y
-                    path += to_string(dato) + ',';
+                if(path[path.size()-1] == ',') // Quita el ultimo char de ser este una coma
+                    path = path.substr(0, path.size()-1);
+                
+                path += dato;
             }
+            
+            else // El dato es una coordenada x o y
+                path += dato + ',';
+            
         }
         pathGuardar[0] = path;
         
@@ -485,7 +463,14 @@ private:
          *  3. Recorre los paths de corte validando si su area coincide con un punto de corte,
          *  de ser así lo agrega al vector pathSeleccionados. O(n*m)
          * 
-         *  
+         *      Insertar los paths en un Quadtree por su area podría dar que la selección sea O(nlogn).
+         *          - No se como se balancearía o si es posible.
+         *          - Si los paths están ubicados a un solo lado del svg el arbol tendría una zona sobrecargada con lo que 
+         *          el comportamiento podría ser O(n^2).
+         * 
+         *      Usar una matriz del tamaño del svg y colocar en cada casilla los paths que se ubiquen allí.
+         *          - La implementación que pensé sería O(n^2 * m) aunque buscar la intersección de los puntos
+         *          sería O(n).
          */
         
         vector<Path*> pathSeleccionados = {};
@@ -504,6 +489,7 @@ private:
         }
         
         // 2.1. Recorre los colores introduciéndolos en un array, los combina de haber más de 5.
+        // Para el color combinado calcula la diferencia promedio entre estos colores.
         auto coloresCorte = new int[5][3];
         int* c; // color seleccionado
         int posColorC = 0; // posición de color corte
@@ -564,7 +550,7 @@ private:
             
             // posColorC tendría la cantidad de colores en el array
             int rangoConbinados = rango + ((difProm * combinados)/2);
-            if(difProm == 0)
+            if(difProm == 0) // difProm == 0, los colores combinados eran iguales
                 rangoConbinados = rango;
             
             int r = c[0]; 
@@ -576,7 +562,6 @@ private:
                && coloresCorte[0][2] - rango <= b && b <= coloresCorte[0][2] + rango){
                 
                 pathCorte.push_back(p);
-                break;
             }
             else if(posColorC >= 2
                && coloresCorte[1][0] - rango <= r && r <= coloresCorte[1][0] + rango
@@ -584,7 +569,6 @@ private:
                && coloresCorte[1][2] - rango <= b && b <= coloresCorte[1][2] + rango){
                 
                 pathCorte.push_back(p);
-                break;
             }
             else if(posColorC >= 3
                && coloresCorte[2][0] - rango <= r && r <= coloresCorte[2][0] + rango
@@ -592,7 +576,6 @@ private:
                && coloresCorte[2][2] - rango <= b && b <= coloresCorte[2][2] + rango){
                 
                 pathCorte.push_back(p);
-                break;
             }
             else if(posColorC >= 4
                && coloresCorte[3][0] - rango <= r && r <= coloresCorte[3][0] + rango
@@ -600,7 +583,6 @@ private:
                && coloresCorte[3][2] - rango <= b && b <= coloresCorte[3][2] + rango){
                 
                 pathCorte.push_back(p);
-                break;
             }
             else if(posColorC == 5
                && coloresCorte[4][0] - rangoConbinados <= r && r <= coloresCorte[4][0] + rangoConbinados
@@ -608,10 +590,8 @@ private:
                && coloresCorte[4][2] - rangoConbinados <= b && b <= coloresCorte[4][2] + rangoConbinados){
                 
                 pathCorte.push_back(p);
-                break;
             }
         }
-
         
         // 3. Recorre los paths de corte y los puntos de corte validando si coinciden
         double* punto;
@@ -628,7 +608,6 @@ private:
                 }
             }
         }
-        
         return pathSeleccionados;
     }
     
@@ -804,28 +783,27 @@ private:
         
         // Descarta los paths que apenas se moverían
         Path* p;
-        vector<Path*>::iterator fin = pathSeleccionados.end();
+        int tamPath = pathSeleccionados.size();
         int pos = 1;
-        for(vector<Path*>::iterator it = pathSeleccionados.begin(); it != fin; ++it) // Recorre los paths
+        
+        for (int i = 0; i < tamPath; i++) // Recorre los paths
         {   
-            p = ((Path*)*it); // Path
+            p = pathSeleccionados[i]; // Path
             
-            // Borra el path Si la cantidad de puntos es menor al 50% de los frames
-            if(p->getPosTam() < frames * 0.5){
-                it = pathSeleccionados.erase(it);
-                --it;
+            // Borra el path Si la cantidad de puntos es menor al 25% de los frames
+            if(p->getPosTam() < frames * 0.25){
+                pathSeleccionados.erase(pathSeleccionados.begin() + i);
                 pos--;
             }
             
             pos++;
         }
         
-        int tamPath = pathSeleccionados.size();
-        fin = pathSeleccionados.end();
+        tamPath = pathSeleccionados.size();
         for (int etapa = 1; etapa <= frames; etapa++) { // Recorre los paths para cada frame
-            for(vector<Path*>::iterator it = pathSeleccionados.begin(); it != fin; ++it)
-            {   
-                p = ((Path*)*it); // Path
+            for (int i = 0; i < tamPath; i++) // Recorre los paths
+            {  
+                p = pathSeleccionados[i]; // Path
                 
                 // Criterio
                 // incremento aproximado para la posición siguiente
@@ -926,9 +904,8 @@ private:
             this->areaInicio = areaIniPath;
             this->areaFin = areaFinPath;
         }
-        
     }
-    
+   
     void iniciarVecPaths_aux(xml_node<>* nodo){
         if((string)nodo->name() == "path"){
             Path* p = new Path();
@@ -1050,7 +1027,7 @@ int main(int argc, char** argv) {
     
     double puntos[][2] = {{0,0},{100,100},{1000,1000},{300,350},{3000,3500}};
     int tamP = (sizeof(puntos) / sizeof(puntos[0]));
-    int colores[][3] = {{56,48,222},{78,33,1},{255,255,255},{101,230,110},{101,110,110},{101,110,110},{0,0,0},{255,255,255}};
+    int colores[][3] = {{0,0,0}};
     int tamC = (sizeof(colores) / sizeof(colores[0]));
     
     double angulo = 180-35;
