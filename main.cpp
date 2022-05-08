@@ -113,12 +113,7 @@ public:
         int tam = this->vectorD.size();
         for (int i = 0; i < tam; i++) {
             dato = this->vectorD[i]; // Selecciona el dato del path (código o num)
-           
-            if(dato == "M" || dato == "m"){
-                absoluta = false;
-                cont = 1;
-                continue;
-            }
+            
             if(dato.size() == 1){
                 if(int('a') <= int(dato[0]) && int(dato[0]) <= int('z')){
                     absoluta = false;
@@ -277,13 +272,14 @@ public:
                 // si el char es un código
                 if(int('A') <= int(c) && int(c) <= int('Z') || int('a') <= int(c) && int(c) <= int('z')){
                     codigoNuevo = c;
-                    if(codigo == 'M'){
-                        // Quitar moveto del d
+                    // Si no se ha definido un moveto y el código detectado es un moveto
+                    if(M_x == -1 && M_y == -1 && (codigo == 'M' || codigo == "m")){
+                        // Quitar moveto del d  (siempre estaría al inicio)
                         this->d = this->d.substr(i, tam - i);
                     }
                 }
                 if(numStr != ""){
-                    if(codigo == 'M'){
+                    if(codigo == 'M' || codigo == "m"){
                         // Define la coordenada del moveto
                         if(M_x == -1)
                             M_x = stod(numStr);
@@ -408,7 +404,7 @@ public:
     
     void posicionesBorrarCant(int cant){
         vector<double*>::iterator itPosIni = this->posiciones.begin();
-        this->posiciones.erase(itPosIni, itPosIni + cant - 1);
+        this->posiciones.erase(itPosIni, itPosIni + cant);
     }
     
     void imprimir(){
@@ -611,7 +607,7 @@ private:
         return pathSeleccionados;
     }
     
-    void ruta(vector<Path*> pathSeleccionados, double angulo){
+    void ruta(vector<Path*> pathSeleccionados, double angulo, int frames){
         /*  
          *  Recorre los paths seleccionados y para cada path calcula la ruta (recta)
          *  de ser necesario. De ser un angulo recto incrementa el 'x' o 'y'.
@@ -705,9 +701,9 @@ private:
                 yDif = y - ySig;
                 // Define los puntos según x
                 if(abs(xDif) > abs(yDif)){ 
-                    double incremento = xDif / abs(xDif);
+                    double incremento = xDif / frames;
                     
-                    while((incremento == 1 && xSig < x) || (incremento == -1 && xSig > x)){
+                    for (int i = 0; i < frames; i++){
                         xSig += incremento;
                         ySig = (m * xSig) + b;
                         
@@ -718,9 +714,9 @@ private:
                     }
                 }
                 else{// Define los puntos según y
-                    double incremento = yDif / abs(yDif);
+                    double incremento = yDif / frames;
                     
-                    while((incremento == 1 && ySig < y) || (incremento == -1 && ySig > y)){
+                    for (int i = 0; i < frames; i++){
                         ySig += incremento;
                         xSig = (ySig - b) / m;
                         
@@ -805,18 +801,12 @@ private:
             {  
                 p = pathSeleccionados[i]; // Path
                 
-                // Criterio
-                // incremento aproximado para la posición siguiente
-                int pos = p->getPosTam() / frames; // Posición del punto del path a seleccionar para el frame (p->getPosTam() cantidad de puntos)
-                
-                // Borra los puntos que estén antes del que se va a utilizar
-                if(pos-1 > 0)
-                    p->posicionesBorrarCant(pos);
-                
                 double* punto = ((double*)*(p->getPosiciones().begin()));
                 double* puntoMover = new double[2];
                 puntoMover[0] = punto[0];
                 puntoMover[1] = punto[1];
+                
+                p->posicionesBorrarCant(1);
                 
                 p->mover(puntoMover);
                 p->guardarPath();
@@ -974,9 +964,12 @@ public:
     
     
     void animacion(double puntos[][2], int tamP, int colores[][3], int tamC, double angulo, int frames){
+        if (frames > 500) // Limite de frames
+            frames = 500;
+        
         vector<Path*> pathSeleccionados = seleccionar(puntos, tamP, colores, tamC);
         
-        ruta(pathSeleccionados, angulo);
+        ruta(pathSeleccionados, angulo, frames);
         frame(pathSeleccionados, frames);
         
     }
