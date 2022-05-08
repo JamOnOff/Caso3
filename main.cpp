@@ -273,13 +273,13 @@ public:
                 if(int('A') <= int(c) && int(c) <= int('Z') || int('a') <= int(c) && int(c) <= int('z')){
                     codigoNuevo = c;
                     // Si no se ha definido un moveto y el código detectado es un moveto
-                    if(M_x == -1 && M_y == -1 && (codigo == 'M' || codigo == "m")){
+                    if(M_x == -1 && M_y == -1 && (codigo == 'M' || codigo == 'm')){
                         // Quitar moveto del d  (siempre estaría al inicio)
                         this->d = this->d.substr(i, tam - i);
                     }
                 }
                 if(numStr != ""){
-                    if(codigo == 'M' || codigo == "m"){
+                    if(codigo == 'M' || codigo == 'm'){
                         // Define la coordenada del moveto
                         if(M_x == -1)
                             M_x = stod(numStr);
