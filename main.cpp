@@ -71,6 +71,7 @@ private:
     double M_x = -1;
     double M_y = -1;
     double* M = new double(2);
+    char M_char;
     
     string d;
     vector<string> vectorD;
@@ -258,6 +259,8 @@ public:
         double aux[2]; // guarda el punto encontrado y que se debe procesar
         double temp;
         
+        bool movetoQuitado = false; // Indica si ya se quitó el primer mveto del d
+        
         int tam = infoPath.size();
         for (int i = 0; i < tam; i++) {
             char c = infoPath[i];
@@ -273,9 +276,12 @@ public:
                 if(int('A') <= int(c) && int(c) <= int('Z') || int('a') <= int(c) && int(c) <= int('z')){
                     codigoNuevo = c;
                     // Si no se ha definido un moveto y el código detectado es un moveto
-                    if(M_x == -1 && M_y == -1 && (codigo == 'M' || codigo == 'm')){
+                    if(!movetoQuitado && (codigo == 'M' || codigo == 'm')){
+                        
+                        this->M_char = codigo;
                         // Quitar moveto del d  (siempre estaría al inicio)
                         this->d = this->d.substr(i, tam - i);
+                        movetoQuitado = true;
                     }
                 }
                 if(numStr != ""){
@@ -364,7 +370,7 @@ public:
         string* pathGuardar = new string();
         
         // Generar nuevo string del path
-        string path = "M" + to_string(this->M_x) + ',' + to_string(this->M_y);
+        string path = this->M_char + to_string(this->M_x) + ',' + to_string(this->M_y);
         
         string dato;
         int cont = 0;
@@ -644,6 +650,9 @@ private:
         double x;
         double y;
         
+        double xDif;
+        double yDif;
+        
         Path* p;
         vector<Path*>::iterator fin = pathSeleccionados.end();
         for(vector<Path*>::iterator it = pathSeleccionados.begin(); it != fin; ++it) // Recorre los paths
@@ -655,8 +664,6 @@ private:
             if(angulo != 0 && angulo != 90 && angulo != 180 && angulo != 270 && angulo != 360){ // si el angulo no es recto
                 
                 // Proceso para definir la posición final
-                double xDif;
-                double yDif;
                 // Si está en el I o IV Cuadrante
                 if((90 > angulo && angulo > 0) || (360 > angulo && angulo > 270)){
                     xDif = ancho - posAct[0];
@@ -730,18 +737,23 @@ private:
             else{ // Es un ángulo recto
                 xSig = posAct[0];
                 ySig = posAct[1];
+                
+                xDif = this->ancho - xSig;
+                yDif = this->alto - ySig;
+                
+                double incrementoX = xDif / frames;
+                double incrementoY = yDif / frames;
+                
                 // mientras la posición no esté fuera de la imagen
-                while(0 < xSig && xSig < this->ancho && 
-                      0 < ySig && ySig < this->alto){
-
+                for (int i = 0; i < frames; i++){
                     if(angulo == 0 || angulo == 360)
-                        xSig++;
+                        xSig += incrementoX;
                     else if(angulo == 180)
-                        xSig--;
+                        xSig -= incrementoX;
                     else if(angulo == 270)
-                        ySig++;
+                        ySig += incrementoY;
                     else if(angulo == 90)
-                        ySig--;
+                        ySig -= incrementoY;
                     
                     double* posSig = new double(2);
                     posSig[0] = xSig;
@@ -1018,13 +1030,13 @@ int main(int argc, char** argv) {
     XML* archivoXML = new XML(nombre);
     
     
-    double puntos[][2] = {{0,0},{100,100},{1000,1000},{300,350},{3000,3500}};
+    double puntos[][2] = {{0,0},{100,100},{1000,1000},{300,350},{2550.1,234},{3000,3500}};
     int tamP = (sizeof(puntos) / sizeof(puntos[0]));
     int colores[][3] = {{0,0,0}};
     int tamC = (sizeof(colores) / sizeof(colores[0]));
     
-    double angulo = 180-35;
-    int frames = 40;
+    double angulo = -35;
+    int frames = 30;
     
     archivoXML->animacion(puntos, tamP, colores, tamC, angulo, frames);
     
