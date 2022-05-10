@@ -33,10 +33,15 @@ double* recta(double x1, double y1, double x2, double y2){
     double m = (y2 - y1) / (x2 - x1);
     double b = y1 - (m*x1);
     
-    double rectaInf[2] = {m, b};
-    double* rectaInfPuntero = rectaInf;
+    double* recta = new double[2];
+    recta[0] = m;
+    recta[1] = b;
     
-    return rectaInfPuntero;
+    return recta;
+}
+
+double* recta(double* p1, double* p2){
+    return recta(p1[0], p1[1], p2[0], p2[1]);
 }
 
 char* strToChar(string str){
@@ -49,6 +54,109 @@ char* strToChar(string str){
     }
     
     return arr;
+}
+
+/*
+ *  Traza una curve desde p1 hasta p3 acercandose a p2
+ */
+double** bezierCurve(double* p1, double* p2, double* p3, int cantidad){
+    double** puntos = new double*[cantidad];
+    
+    double* recta1 = recta(p1, p2);
+    double* recta2 = recta(p2, p3);
+    
+    double incXRec1, incYRec1;
+    if(abs(p2[0] - p1[0]) > abs(p2[1] - p1[1])){
+        incXRec1 = (p2[0] - p1[0]) / cantidad;
+        incYRec1 = 0;
+    }
+    else{
+        incXRec1 = 0;
+        incYRec1 = (p2[1] - p1[1]) / cantidad;
+    }
+    
+    double incXRec2, incYRec2;
+    if(abs(p3[0] - p2[0]) > abs(p3[1] - p2[1])){
+        incXRec2 = (p3[0] - p2[0]) / cantidad;
+        incYRec2 = 0;
+    }
+    else{
+        incXRec2 = 0;
+        incYRec2 = (p3[1] - p2[1]) / cantidad;
+    }
+    
+    // puntos a seleccionar de la recta central
+    double x = p1[0];
+    double y = p1[1];
+    
+    double xDif = p3[0] - p1[0];
+    double yDif = p3[1] - p1[1];
+    double incX, incY;
+    if(abs(xDif) > abs(yDif)){
+        incX = xDif / cantidad;
+        incY = 0;
+    }
+    else{
+        incX = 0;
+        incY = yDif / cantidad;
+    }
+    
+    double* rectaCen; // Recta central, con la que se seleccionan los puntos de la curva
+    for (int i = 0; i < cantidad; i++) {
+        puntos[i] = new double[2];
+        
+        rectaCen = recta(p1, p2);
+        
+        if(abs(xDif) > abs(yDif))
+            // y = mx + b
+            y = (rectaCen[0]*x) + rectaCen[1];
+        
+        else
+            // x = (y - b) / m
+            x = (y - rectaCen[1]) / rectaCen[0];
+        
+        puntos[i][0] = x;
+        puntos[i][1] = y;
+        
+        //cout << p1[0] << "," << p1[1] << ";" << p2[0] << "," << p2[1] << ";" << p3[0] << "," << p3[1] << ":" << i << ":" << x << "," << y << endl;
+        //while(true){}
+        
+        x += incX;
+        y += incY;
+        
+        p1[0] += incXRec1;
+        p1[1] += incYRec1;
+        p2[0] += incXRec2;
+        p2[1] += incYRec2;
+        
+        if(incXRec1 != 0)
+            p1[1] = (recta1[0] * p1[0]) + recta1[1];
+        else
+            p1[0] = (p1[1] - recta1[1]) / recta1[0];
+        
+        if(incXRec2 != 0)
+            p2[1] = (recta2[0] * p2[0]) + recta2[1];
+        else
+            p2[0] = (p2[1] - recta2[1]) / recta2[0];
+    }
+    
+    return puntos;
+}
+
+double** bezierCurve(double xP1, double yP1, double xP2, double yP2, double xP3, double yP3, int cantidad){
+    double* p1 = new double[2];
+    p1[0] = xP1;
+    p1[1] = yP1;
+    
+    double* p2 = new double[2];
+    p2[0] = xP2;
+    p2[1] = yP2;
+    
+    double* p3 = new double[2];
+    p3[0] = xP3;
+    p3[1] = yP3;
+    
+    return bezierCurve(p1, p2, p3, cantidad);
 }
 
 class Path{
@@ -613,9 +721,9 @@ private:
         return pathSeleccionados;
     }
     
-    void ruta(vector<Path*> pathSeleccionados, double angulo, int frames){
+    void ruta(vector<Path*> pathSeleccionados, double angulo, int frames, bool curva){
         /*  
-         *  Recorre los paths seleccionados y para cada path calcula la ruta (recta)
+         *  Recorre los paths seleccionados y para cada path calcula la ruta
          *  de ser necesario. De ser un angulo recto incrementa el 'x' o 'y'.
          *  Luego guarda todos los puntos calculados en el objeto path.
          * 
@@ -644,6 +752,12 @@ private:
         if(negativo)
             angulo = 360 - angulo;
         
+        if(angulo == 0 || angulo == 90 || angulo == 180 || angulo == 270)
+            angulo++;
+        else if(angulo == 360)
+            angulo--;
+        
+        
         // define el angulo en radianes
         double radianes = (angulo / 180) * M_PI;
         
@@ -654,66 +768,112 @@ private:
         double yDif;
         
         Path* p;
-        vector<Path*>::iterator fin = pathSeleccionados.end();
-        for(vector<Path*>::iterator it = pathSeleccionados.begin(); it != fin; ++it) // Recorre los paths
+        int tamPath = pathSeleccionados.size();
+        for(int i = 0; i < tamPath; i++) // Recorre los paths
         {   
-            p = ((Path*)*it);
+            p = pathSeleccionados[i];
             posAct = p->getPosMoveto();
             
-            // Si no es un ángulo recto
-            if(angulo != 0 && angulo != 90 && angulo != 180 && angulo != 270 && angulo != 360){ // si el angulo no es recto
-                
-                // Proceso para definir la posición final
+            // Proceso para definir la posición final
+            // Si está en el I o IV Cuadrante
+            if((90 > angulo && angulo > 0) || (360 > angulo && angulo > 270)){
+                xDif = ancho - posAct[0];
+                yDif = tan(radianes) * xDif * -1;
+                x = ancho;
+            }
+            else{
+                xDif = posAct[0];
+                yDif = tan(radianes) * xDif;
+                x = 0;
+            }
+            y = posAct[1] + yDif;
+
+            // Si el 'Y' sobrepasó la imagen
+            if(y < 0 || y > alto){
+                if(y < 0){
+                    yDif = posAct[1];
+                    y = 0;
+                }
+                else if(y > alto){
+                    yDif = alto - posAct[1];
+                    y = alto;
+                }
+                xDif = abs(yDif / tan(radianes));
+
                 // Si está en el I o IV Cuadrante
-                if((90 > angulo && angulo > 0) || (360 > angulo && angulo > 270)){
-                    xDif = ancho - posAct[0];
-                    yDif = tan(radianes) * xDif * -1;
-                    x = ancho;
+                if((90 > angulo && angulo > 0) || (360 > angulo && angulo > 270))
+                    x = posAct[0] + xDif;
+                else
+                    x = posAct[0] - xDif;
+            }
+
+            // (x, y) Es la posición final
+            xSig = posAct[0];
+            ySig = posAct[1];
+            double* rectaInf = recta(xSig, ySig, x, y); // retorna {m, b}
+            double m = rectaInf[0];
+            double b = rectaInf[1];
+
+            xDif = x - xSig;
+            yDif = y - ySig;
+            if(curva){
+                // Recta Tangente
+                double mT = -1 / m; // m*mT = -1
+
+                // Proceso para hayar el punto central de la recta normal
+                if(abs(xDif) > abs(yDif)){
+                    xSig += xDif / 2;
+                    ySig = (m * xSig) + b;
                 }
                 else{
-                    xDif = posAct[0];
-                    yDif = tan(radianes) * xDif;
-                    x = 0;
+                    ySig += yDif / 2;
+                    xSig = (ySig - b) / m;
                 }
-                y = posAct[1] + yDif;
 
-                // Si el 'Y' sobrepasó la imagen
-                if(y < 0 || y > alto){
-                    if(y < 0){
-                        yDif = posAct[1];
-                        y = 0;
-                    }
-                    else if(y > alto){
-                        yDif = alto - posAct[1];
-                        y = alto;
-                    }
-                    xDif = abs(yDif / tan(radianes));
+                // (xSig, ySig) punto central
+                // b = y - m*x
+                double bT = ySig - (mT * xSig); // 'b' de la rectga tangente
 
-                    // Si está en el I o IV Cuadrante
-                    if((90 > angulo && angulo > 0) || (360 > angulo && angulo > 270))
-                        x = posAct[0] + xDif;
+                // Hayar el punto medio para la curva (p2) de bezierCurve
+                if(abs(xDif) > abs(yDif)){
+                    if((int)xDif % 2) // Es impar
+                        ySig = 2;
                     else
-                        x = posAct[0] - xDif;
+                        ySig = this->alto-2;
+                    xSig = (ySig - bT) / mT;
+                }
+                else{
+                    if((int)yDif % 2) // Es impar
+                        xSig = 2;
+                    else
+                        xSig = this->ancho-2;
+                    ySig = (mT * xSig) + bT;
                 }
                 
-                // (x, y) Es la posición final
-                // Proceso para hayar los puntos de la recta
-                xSig = posAct[0];
-                ySig = posAct[1];
-                double* rectaInf = recta(xSig, ySig, x, y); // retorna {m, b}
-                double m = rectaInf[0];
-                double b = rectaInf[1];
+                if(xSig < 0)
+                    xSig = 2;
+                else if(xSig > this->ancho)
+                    xSig = this->ancho-2;
+                if(ySig < 0)
+                    ySig = 2;
+                else if(ySig > this->alto)
+                    ySig = this->alto-2;
                 
-                xDif = x - xSig;
-                yDif = y - ySig;
+                // Puntos de la curva
+                double** puntos = bezierCurve(posAct[0], posAct[1], xSig, ySig, x, y, frames);
+                for (int i = 0; i < frames; i++)
+                    p->addPosicion(puntos[i]);
+            }
+            else{
+                // Proceso para hayar los puntos de la recta
                 // Define los puntos según x
                 if(abs(xDif) > abs(yDif)){ 
                     double incremento = xDif / frames;
-                    
+
                     for (int i = 0; i < frames; i++){
                         xSig += incremento;
                         ySig = (m * xSig) + b;
-                        
+
                         double* punto = new double(2);
                         punto[0] = xSig;
                         punto[1] = ySig;
@@ -722,11 +882,11 @@ private:
                 }
                 else{// Define los puntos según y
                     double incremento = yDif / frames;
-                    
+
                     for (int i = 0; i < frames; i++){
                         ySig += incremento;
                         xSig = (ySig - b) / m;
-                        
+
                         double* punto = new double(2);
                         punto[0] = xSig;
                         punto[1] = ySig;
@@ -734,45 +894,16 @@ private:
                     }
                 }
             }
-            else{ // Es un ángulo recto
-                xSig = posAct[0];
-                ySig = posAct[1];
-                
-                xDif = this->ancho - xSig;
-                yDif = this->alto - ySig;
-                
-                double incrementoX = xDif / frames;
-                double incrementoY = yDif / frames;
-                
-                // mientras la posición no esté fuera de la imagen
-                for (int i = 0; i < frames; i++){
-                    if(angulo == 0 || angulo == 360)
-                        xSig += incrementoX;
-                    else if(angulo == 180)
-                        xSig -= incrementoX;
-                    else if(angulo == 270)
-                        ySig += incrementoY;
-                    else if(angulo == 90)
-                        ySig -= incrementoY;
-                    
-                    double* posSig = new double(2);
-                    posSig[0] = xSig;
-                    posSig[1] = ySig;
-                    p->addPosicion(posSig);
-                }
-            }
-            
         }
+        
     }
     
     void guardarFrame(int frameNum){
         string nuevoNombre = this->nombre + to_string(frameNum) + ".svg";
         
-        
         stringstream ss;
         ss << *raiz.first_node(); // Pasa el nodo raiz al stringstream (ss)
         string stringXML = ss.str(); // Pasa a string el xml
-        
         
         ofstream file(nuevoNombre.c_str());
         file << stringXML; // Guarda el stringXML en el nuevo archivo
@@ -781,6 +912,8 @@ private:
     
     void frame(vector<Path*> pathSeleccionados, int frames){
         /*  Voraz
+         * 
+         *  Backtracking - poda
          * 
          *  Las fases serían los frames a generar
          *  
@@ -792,7 +925,6 @@ private:
         // Descarta los paths que apenas se moverían
         Path* p;
         int tamPath = pathSeleccionados.size();
-        int pos = 1;
         
         for (int i = 0; i < tamPath; i++) // Recorre los paths
         {   
@@ -801,10 +933,8 @@ private:
             // Borra el path Si la cantidad de puntos es menor al 25% de los frames
             if(p->getPosTam() < frames * 0.25){
                 pathSeleccionados.erase(pathSeleccionados.begin() + i);
-                pos--;
+                i--;
             }
-            
-            pos++;
         }
         
         tamPath = pathSeleccionados.size();
@@ -975,13 +1105,13 @@ public:
     }
     
     
-    void animacion(double puntos[][2], int tamP, int colores[][3], int tamC, double angulo, int frames){
+    void animacion(double puntos[][2], int tamP, int colores[][3], int tamC, double angulo, int frames, bool curva){
         if (frames > 500) // Limite de frames
             frames = 500;
         
         vector<Path*> pathSeleccionados = seleccionar(puntos, tamP, colores, tamC);
         
-        ruta(pathSeleccionados, angulo, frames);
+        ruta(pathSeleccionados, angulo, frames, curva);
         frame(pathSeleccionados, frames);
         
     }
@@ -1029,16 +1159,19 @@ int main(int argc, char** argv) {
     
     XML* archivoXML = new XML(nombre);
     
-    
-    double puntos[][2] = {{0,0},{100,100},{1000,1000},{300,350},{2550.1,234},{3000,3500}};
+   
+    double puntos[][2] = {{0,0},{100,100},{1000,1000},{300,350},{1087.849,614.77},{3000,3500}};
     int tamP = (sizeof(puntos) / sizeof(puntos[0]));
-    int colores[][3] = {{0,0,0}};
+    
+    int colores[][3] = {{0,0,0},{0,0,0},{0,0,0},{0,0,0},{0,0,0},{255,255,255},{0,0,0}};
     int tamC = (sizeof(colores) / sizeof(colores[0]));
     
-    double angulo = -35;
-    int frames = 30;
+    double angulo = 0;
+    int frames = 32;
     
-    archivoXML->animacion(puntos, tamP, colores, tamC, angulo, frames);
+    bool curva = false;
+    
+    archivoXML->animacion(puntos, tamP, colores, tamC, angulo, frames, curva);
     
     return 0;
 }
