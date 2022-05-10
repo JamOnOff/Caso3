@@ -562,10 +562,10 @@ private:
          *  se define un area general de corte y prepara los paths para la función de ruta: 
          *  Pasa la información del path a un vector. O(n*m)
          * 
-         *  Puntos
+         *  Puntos - vector puntosCorte
          *  1. Recorre los puntos indicados excluyendo los que están fuera del area general. O(n)
          *  
-         *  Colores
+         *  Colores - vector coloresCorte - vector pathCorte
          *  2.1. Recorre los colores introduciéndolos en un array, los combina de haber más de 5. O(n)
          *  2.2. Crea un vector de paths corte según los colores de corte. O(n)
          *  
@@ -723,12 +723,27 @@ private:
     
     void ruta(vector<Path*> pathSeleccionados, double angulo, int frames, bool curva){
         /*  
-         *  Recorre los paths seleccionados y para cada path calcula la ruta
-         *  de ser necesario. De ser un angulo recto incrementa el 'x' o 'y'.
+         *  Divide y Venceras
+         *      n: Los paths
+         *      Divide los paths hasta llegar a tamaño 1. Divide un path a la vez.
+         * 
+         *      Conquer:
+         *          Juntar en el path los puntos de la ruta trazada.
+         * 
+         *  1. Ajusta el angulo para que sea positivo < 360.
+         *  2. Define la posición final. 
+         *  Recta
+         *      3. Traza una recta y haya los puntos
+         *  Curva
+         *      3. Traza una recta a la cual le traza la recta tangente en el medio
+         *      para hayar el otro punto de la curva.
+         *      Con estos 3 puntos (punto inicial, final y de la recta tangente)
+         *      se hayan los demás con bezierCurve. O(c)
+         * 
          *  Luego guarda todos los puntos calculados en el objeto path.
-         * 
-         *  El incremento base es 1 en 'x' o 'y'
-         * 
+         *  
+         *  Todo el proceso sería O(n), pues al limitar los frames en un máximo de 500 
+         *  el peor caso sería O(500 * n)
          */
         double* posAct;
         double xSig;
@@ -911,18 +926,26 @@ private:
     }
     
     void frame(vector<Path*> pathSeleccionados, int frames){
-        /*  Voraz
-         * 
-         *  Backtracking - poda
-         * 
-         *  Las fases serían los frames a generar
+        /*  
+         *  Backtracking
          *  
-         *  Óptimo: Posición (punto) a mover el path
-         *  Criterio: Punto que concuerde con la cantidad de puntos
-         *  dividido entre los frames
+         *  1. Se borran los paths invalidos. O(n)
+         *  2. Recorre todos los paths por cada frame a generar, actualizando las posiciones de cada path. O(n*m)
+         *  Al limitar los frames en un máximo de 500 el peor caso sería O(500 * n * m)
+         *      
+         *      Pasar los paths a posiciones relativas
+         *          - Al hacer este cambio en las instrucciones el actualizar la posción
+         *          del path sería O(n) pues solo se tendría que actualizar el moveto (m)
+         *          - La figura se distorsiona mayoritariamente.
+         *  
+         * 
+         *  Criterio/poda: Paths con una cantidad de puntos menor al 25% de los frames a generar, 
+         *  se considerarían inválidos. 
+         *  Retrocede implícitamente al borrar los paths inválidos, 
+         *  ejecutando el proceso completo solo en los válidos.
          */
         
-        // Descarta los paths que apenas se moverían
+        //1
         Path* p;
         int tamPath = pathSeleccionados.size();
         
@@ -937,11 +960,12 @@ private:
             }
         }
         
+        //2
         tamPath = pathSeleccionados.size();
-        for (int etapa = 1; etapa <= frames; etapa++) { // Recorre los paths para cada frame
-            for (int i = 0; i < tamPath; i++) // Recorre los paths
+        for (int i = 1; i <= frames; i++) { // Recorre los paths para cada frame
+            for (int j = 0; j < tamPath; j++) // Recorre los paths
             {  
-                p = pathSeleccionados[i]; // Path
+                p = pathSeleccionados[j]; // Path
                 
                 double* punto = ((double*)*(p->getPosiciones().begin()));
                 double* puntoMover = new double[2];
@@ -954,8 +978,8 @@ private:
                 p->guardarPath();
             }
             // Se ha actualizado las posiciones de los paths
-            // Guarda el xml como nuevo frame
-            guardarFrame(etapa);
+            // Guarda el nuevo frame
+            guardarFrame(i);
         }
     }
     
